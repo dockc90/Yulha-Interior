@@ -1337,12 +1337,19 @@ export const FloorPlanImportModal: React.FC<Props> = ({
           <div className="flex items-center gap-2">
             <button
               onClick={() => {
-                if (step > 1) setStep((s) => ((s - 1) as 1 | 2 | 3));
-                else onClose();
+                if (step > 1) {
+                  setStep((s) => ((s - 1) as 1 | 2 | 3));
+                } else if (previewUrl) {
+                  setPreviewUrl(null);
+                  setRooms([]);
+                  setWalls([]);
+                } else {
+                  onClose();
+                }
               }}
-              className="flex items-center gap-1 px-3.5 py-2 text-xs font-semibold text-[#787774] hover:text-[#37352F]"
+              className="flex items-center gap-1 px-3.5 py-2 text-xs font-semibold text-[#787774] hover:text-[#37352F] rounded-md hover:bg-[#EFEFED] transition"
             >
-              {step > 1 ? (
+              {step > 1 || previewUrl ? (
                 <>
                   <ArrowLeft className="w-3.5 h-3.5" /> 이전 단계
                 </>
