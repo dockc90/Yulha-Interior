@@ -28,6 +28,8 @@ import {
   FolderOpen,
   ScanLine,
   Home,
+  Plug,
+  RefreshCw,
 } from 'lucide-react';
 import { EditorTool } from './types/interior';
 
@@ -39,11 +41,15 @@ export function App() {
     future,
     editorTool,
     viewMode,
+    syncMode,
+    hasPending3DChanges,
     showFurniture,
     showDimensions,
     toastMessage,
     setEditorTool,
     setViewMode,
+    setSyncMode,
+    commit3DUpdate,
     setShowFurniture,
     setShowDimensions,
     toggleExtendedMode,
@@ -137,6 +143,7 @@ export function App() {
     { id: 'add_door', label: '문추가', icon: <DoorOpen className="w-4 h-4" /> },
     { id: 'add_window', label: '창추가', icon: <AppWindow className="w-4 h-4" /> },
     { id: 'add_light', label: '조명', icon: <Lightbulb className="w-4 h-4" /> },
+    { id: 'add_outlet', label: '콘센트', icon: <Plug className="w-4 h-4" /> },
   ];
 
   return (
@@ -282,6 +289,40 @@ export function App() {
             <Box className="w-3.5 h-3.5" />
             <span>3D 모델</span>
           </button>
+
+          {hasSelectedPlan && (
+            <>
+              <div className="w-px h-4 bg-[#E9E9E7] mx-0.5" />
+              <button
+                onClick={() => setSyncMode(syncMode === 'realtime' ? 'manual' : 'realtime')}
+                title={
+                  syncMode === 'realtime'
+                    ? '현재: 2D 수정 시 3D 실시간 반영 중 (클릭 시 수동 반영 모드로 전환)'
+                    : '현재: 2D 수정 후 [3D 업데이트] 클릭 시 반영 (클릭 시 실시간 모드로 전환)'
+                }
+                className={`px-2 py-1 rounded-md text-[11px] font-semibold transition ${
+                  syncMode === 'realtime'
+                    ? 'text-[#0F7B6C] bg-[#DDEDEA]/70 hover:bg-[#DDEDEA]'
+                    : 'text-[#787774] hover:text-[#37352F] hover:bg-[#EFEFEE]'
+                }`}
+              >
+                {syncMode === 'realtime' ? '실시간 3D' : '수동 3D'}
+              </button>
+              {syncMode === 'manual' && (
+                <button
+                  onClick={commit3DUpdate}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-bold flex items-center gap-1 transition ${
+                    hasPending3DChanges
+                      ? 'bg-[#2383E2] text-white shadow-xs animate-pulse'
+                      : 'bg-white text-[#787774] border border-[#E9E9E7]'
+                  }`}
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>3D 업데이트</span>
+                </button>
+              )}
+            </>
+          )}
         </div>
 
         {/* Right Actions: Undo/Redo, Save, Estimate, AI */}

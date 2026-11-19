@@ -19,6 +19,8 @@ const CATEGORY_TABS: { id: MaterialCategory; label: string }[] = [
   { id: 'film', label: '인테리어필름' },
   { id: 'ceiling', label: '천장/우물' },
   { id: 'lighting', label: '조명' },
+  { id: 'electrical', label: '콘센트/스위치' },
+  { id: 'appliance', label: '가전/냉장고' },
 ];
 
 export const MaterialPanel: React.FC = () => {
@@ -39,6 +41,8 @@ export const MaterialPanel: React.FC = () => {
     resizeWallLength,
     toggleLight,
     deleteLight,
+    deleteWallFixture,
+    setFurnitureVariant,
     setEditorTool,
     showToast,
   } = useStudioStore();
@@ -83,6 +87,16 @@ export const MaterialPanel: React.FC = () => {
       ? plan.walls
           .find((w) => w.id === selection.wallId)
           ?.openings.find((o) => o.id === selection.openingId)
+      : null;
+
+  const selectedFixture =
+    selection?.kind === 'fixture'
+      ? (plan.fixtures || []).find((f) => f.id === selection.id) || null
+      : null;
+
+  const selectedFurniture =
+    selection?.kind === 'furniture'
+      ? plan.furniture.find((f) => f.id === selection.id) || null
       : null;
 
   const qNorm = search.replace(/\s+/g, '').toLowerCase();
@@ -525,6 +539,71 @@ export const MaterialPanel: React.FC = () => {
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
             </div>
+          </div>
+        )}
+
+        {selectedFixture && (
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-bold text-[#37352F]">
+                {selectedFixture.type === 'outlet_2'
+                  ? '2구 콘센트'
+                  : selectedFixture.type === 'switch_2'
+                    ? '2구 스위치'
+                    : selectedFixture.type === 'wallpad'
+                      ? '홈 월패드'
+                      : '반매립 OLED TV'}
+              </div>
+              <div className="text-xs text-[#787774]">
+                아래 [콘센트/스위치] 탭에서 마감 컬러를 변경하세요
+              </div>
+            </div>
+            <button
+              onClick={() => deleteWallFixture(selectedFixture.id)}
+              className="p-1.5 rounded-md bg-[#EFEFEE] hover:bg-[#FBE4E4] text-[#787774] hover:text-[#E03E3E]"
+              title="설비 삭제"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {selectedFurniture && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-bold text-[#37352F]">
+                  {selectedFurniture.name}
+                </div>
+                <div className="text-xs text-[#787774]">
+                  {Math.round(selectedFurniture.width * 1000)} × {Math.round(selectedFurniture.depth * 1000)} mm · 아래 [가전/냉장고] 또는 [인테리어필름]에서 색상 변경
+                </div>
+              </div>
+            </div>
+            {selectedFurniture.category === 'tall_cabinet' && (
+              <div className="flex gap-1.5">
+                <button
+                  onClick={() => setFurnitureVariant(selectedFurniture.id, 'option1')}
+                  className={`flex-1 py-1.5 rounded-md text-xs font-semibold border transition ${
+                    selectedFurniture.variant === 'option1'
+                      ? 'bg-[#EBF5FF] text-[#2383E2] border-[#BFE0FF]'
+                      : 'bg-white text-[#787774] border-[#E9E9E7]'
+                  }`}
+                >
+                  1번: 오픈장 + 홈바
+                </button>
+                <button
+                  onClick={() => setFurnitureVariant(selectedFurniture.id, 'option2')}
+                  className={`flex-1 py-1.5 rounded-md text-xs font-semibold border transition ${
+                    selectedFurniture.variant !== 'option1'
+                      ? 'bg-[#EBF5FF] text-[#2383E2] border-[#BFE0FF]'
+                      : 'bg-white text-[#787774] border-[#E9E9E7]'
+                  }`}
+                >
+                  2번: 와이드 홈바
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

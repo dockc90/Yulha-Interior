@@ -35,6 +35,8 @@ export const Viewport3D: React.FC = () => {
     cameraPreset,
     showFurniture,
     showCeilingIn3D,
+    syncMode,
+    renderVersion3D,
     selectTarget,
     toggleDemolishWall,
     setShowCeilingIn3D,
@@ -73,7 +75,8 @@ export const Viewport3D: React.FC = () => {
     });
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = false;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.05;
     container.appendChild(renderer.domElement);
@@ -87,15 +90,25 @@ export const Viewport3D: React.FC = () => {
     controls.maxDistance = 35;
     controlsRef.current = controls;
 
-    // Studio Gallery Lighting (soft 3-point bounce for crisp 3D depth without harsh sunlight/shadows)
+    // Studio Gallery Lighting (soft 3-point bounce + soft shadows)
     const ambient = new THREE.AmbientLight(0xfffdf9, 0.58);
     scene.add(ambient);
 
     const hemi = new THREE.HemisphereLight(0xffffff, 0xd6d3cd, 0.85);
     scene.add(hemi);
 
-    const keyFill = new THREE.DirectionalLight(0xfffcf5, 0.48);
+    const keyFill = new THREE.DirectionalLight(0xfffcf5, 0.52);
     keyFill.position.set(-10, 18, 12);
+    keyFill.castShadow = true;
+    keyFill.shadow.mapSize.width = 1024;
+    keyFill.shadow.mapSize.height = 1024;
+    keyFill.shadow.camera.near = 2;
+    keyFill.shadow.camera.far = 45;
+    keyFill.shadow.camera.left = -14;
+    keyFill.shadow.camera.right = 14;
+    keyFill.shadow.camera.top = 14;
+    keyFill.shadow.camera.bottom = -14;
+    keyFill.shadow.bias = -0.0005;
     scene.add(keyFill);
 
     const rimFill = new THREE.DirectionalLight(0xeef4ff, 0.28);
@@ -229,10 +242,20 @@ export const Viewport3D: React.FC = () => {
     ctrl.update();
   }, [cameraPreset, plan.id]);
 
+  const lastRenderVerRef = useRef<number>(0);
+
   // Rebuild 3D Apartment Geometry whenever Plan / Selection / Toggles change
   useEffect(() => {
     const group = modelGroupRef.current;
     if (!group) return;
+    if (
+      syncMode === 'manual' &&
+      lastRenderVerRef.current === renderVersion3D &&
+      group.children.length > 0
+    ) {
+      return;
+    }
+    lastRenderVerRef.current = renderVersion3D;
 
     while (group.children.length > 0) {
       const child = group.children[0];
@@ -909,6 +932,105 @@ export const Viewport3D: React.FC = () => {
           );
           inner.position.y = f.height - 0.02;
           fGroup.add(tub, inner);
+        } else if (f.category === 'fridge_cabinet') {
+          // 4도어 키친핏 냉장고 + 상부장 + 블랙 틈새 라인 (첨부 이미지 스타일)
+          const doorColor = f.materialId ? getMaterialById(f.materialId).baseColor : f.color || '#F5F3EE';
+          const cabMat = new THREE.MeshStandardMaterial({ color: doorColor, roughness: 0.3 });
+          const gapMat = new THREE.MeshStandardMaterial({ color: 0x1a1c1f, roughness: 0.5 });
+
+          const body = new THREE.Mesh(new THREE.BoxGeometry(f.width, f.height, f.depth), gapMat);
+          body.position.y = f.height / 2;
+          body.castShadow = true;
+
+          // Upper storage cabinet
+          const upper = new THREE.Mesh(
+            new THREE.BoxGeometry(f.width - 0.02, 0.42, f.depth + 0.01),
+            cabMat
+          );
+          upper.position.set(0, f.height - 0.22, 0.005);
+
+          // 4 doors (2 top, 2 bottom)
+          const doorW = (f.width - 0.05) / 2;
+          const topH = (f.height - 0.52) * 0.58;
+          const botH = (f.height - 0.52) * 0.4;
+          [-1, 1].forEach((side) => {
+            const topDoor = new THREE.Mesh(
+              new THREE.BoxGeometry(doorW, topH, 0.03),
+              cabMat
+            );
+            topDoor.position.set(side * (doorW / 2 + 0.008), f.height - 0.46 - topH / 2, f.depth / 2 + 0.006);
+            const botDoor = new THREE.Mesh(
+              new THREE.BoxGeometry(doorW, botH, 0.03),
+              cabMat
+            );
+            botDoor.position.set(side * (doorW / 2 + 0.008), botH / 2 + 0.03, f.depth / 2 + 0.006);
+            fGroup.add(topDoor, botDoor);
+          });
+          fGroup.add(body, upper);
+        } else if (f.category === 'tall_cabinet') {
+          // 첨부 이미지 3(1번 오픈장+홈바) vs 4(2번 와이드 홈바) 옵션 3D 모델!
+          const doorColor = f.materialId ? getMaterialById(f.materialId).baseColor : '#F3EFEA';
+          const cabMat = new THREE.MeshStandardMaterial({ color: doorColor, roughness: 0.4 });
+          const woodMat = new THREE.MeshStandardMaterial({ color: 0xb68655, roughness: 0.55 });
+          const frameMat = new THREE.MeshStandardMaterial({ color: 0x2b2d30, roughness: 0.4 });
+          const ledMat = new THREE.MeshBasicMaterial({ color: 0xfde68a });
+
+          const base = new THREE.Mesh(new THREE.BoxGeometry(f.width, f.height, f.depth), cabMat);
+          base.position.y = f.height / 2;
+          base.castShadow = true;
+          fGroup.add(base);
+
+          if (f.variant === 'option1') {
+            // 좌측 오픈 장식장 + 우측 우드 홈바 니치장
+            const niche = new THREE.Mesh(
+              new THREE.BoxGeometry(f.width * 0.45, 0.72, 0.08),
+              woodMat
+            );
+            niche.position.set(f.width * 0.22, 1.35, f.depth / 2 - 0.02);
+            const ledStrip = new THREE.Mesh(
+              new THREE.BoxGeometry(f.width * 0.42, 0.015, 0.03),
+              ledMat
+            );
+            ledStrip.position.set(f.width * 0.22, 1.69, f.depth / 2);
+            const glassShelf = new THREE.Mesh(
+              new THREE.BoxGeometry(f.width * 0.42, 1.75, 0.05),
+              frameMat
+            );
+            glassShelf.position.set(-f.width * 0.24, 1.05, f.depth / 2 - 0.01);
+            fGroup.add(niche, ledStrip, glassShelf);
+          } else {
+            // 2번: 와이드 우드 홈바 니치장 + 간접등
+            const niche = new THREE.Mesh(
+              new THREE.BoxGeometry(f.width * 0.9, 0.78, 0.08),
+              woodMat
+            );
+            niche.position.set(0, 1.32, f.depth / 2 - 0.02);
+            const ledStrip = new THREE.Mesh(
+              new THREE.BoxGeometry(f.width * 0.86, 0.015, 0.03),
+              ledMat
+            );
+            ledStrip.position.set(0, 1.69, f.depth / 2);
+            fGroup.add(niche, ledStrip);
+          }
+        } else if (f.category === 'induction') {
+          const glassMat = new THREE.MeshStandardMaterial({
+            color: f.materialId ? getMaterialById(f.materialId).baseColor : 0x16181d,
+            roughness: 0.12,
+            metalness: 0.25,
+          });
+          const plate = new THREE.Mesh(new THREE.BoxGeometry(f.width, 0.03, f.depth), glassMat);
+          plate.position.y = 0.015;
+          fGroup.add(plate);
+          // 3 burner rings
+          [-f.width * 0.24, 0.08, f.width * 0.26].forEach((bx, bi) => {
+            const ring = new THREE.Mesh(
+              new THREE.RingGeometry(0.055, 0.068, 24),
+              new THREE.MeshBasicMaterial({ color: 0x9ca3af, side: THREE.DoubleSide })
+            );
+            ring.rotation.x = -Math.PI / 2;
+            ring.position.set(bx, 0.032, bi === 1 ? -0.1 : 0.08);
+            fGroup.add(ring);
+          });
         } else {
           const box = new THREE.Mesh(
             new THREE.BoxGeometry(f.width, f.height, f.depth),
@@ -922,7 +1044,76 @@ export const Viewport3D: React.FC = () => {
         group.add(fGroup);
       });
     }
-  }, [plan, selection, showFurniture, showCeilingIn3D, cameraPreset]);
+
+    // 5. Wall Fixtures (콘센트 · 스위치 · 월패드 · 반매립 TV)
+    (plan.fixtures || []).forEach((fix) => {
+      const wall = plan.walls.find((w) => w.id === fix.wallId && !w.demolished);
+      if (!wall) return;
+      const dx = wall.x2 - wall.x1;
+      const dy = wall.y2 - wall.y1;
+      const len = Math.hypot(dx, dy);
+      if (len < 0.1) return;
+      const angle = Math.atan2(dy, dx);
+      const wx = wall.x1 + dx * fix.offset;
+      const wz = wall.y1 + dy * fix.offset;
+      const nx = -dy / len;
+      const nz = dx / len;
+      const sign = fix.side === 'back' ? -1 : 1;
+      const offsetDist = wall.thickness / 2 + 0.008;
+
+      const fixMat = getMaterialById(fix.materialId || 'el-legrand-white');
+      const isSelected = selection?.kind === 'fixture' && selection.id === fix.id;
+
+      const fxGroup = new THREE.Group();
+      fxGroup.position.set(wx + nx * offsetDist * sign, fix.elevation, wz + nz * offsetDist * sign);
+      fxGroup.rotation.y = -angle + (sign < 0 ? Math.PI : 0);
+
+      const plateMat = new THREE.MeshStandardMaterial({
+        color: isSelected ? '#2383E2' : fixMat.baseColor,
+        roughness: fixMat.roughness,
+        metalness: fixMat.metalness ?? 0.1,
+      });
+
+      if (fix.type === 'wall_tv') {
+        const bezel = new THREE.Mesh(new THREE.BoxGeometry(1.65, 0.94, 0.03), new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.3 }));
+        const screen = new THREE.Mesh(
+          new THREE.BoxGeometry(1.59, 0.88, 0.01),
+          new THREE.MeshStandardMaterial({ color: 0x1e3a5f, emissive: 0x1e3a5f, emissiveIntensity: 0.35, roughness: 0.15 })
+        );
+        screen.position.z = 0.015;
+        fxGroup.add(bezel, screen);
+      } else if (fix.type === 'wallpad') {
+        const frame = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.18, 0.018), plateMat);
+        const screen = new THREE.Mesh(
+          new THREE.BoxGeometry(0.22, 0.14, 0.008),
+          new THREE.MeshStandardMaterial({ color: 0x0f172a, emissive: 0x1e293b, emissiveIntensity: 0.4, roughness: 0.15 })
+        );
+        screen.position.z = 0.009;
+        fxGroup.add(frame, screen);
+      } else if (fix.type === 'switch_2') {
+        const plate = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.125, 0.012), plateMat);
+        const btn1 = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.055, 0.008), plateMat);
+        btn1.position.set(-0.016, 0, 0.008);
+        const btn2 = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.055, 0.008), plateMat);
+        btn2.position.set(0.016, 0, 0.008);
+        fxGroup.add(plate, btn1, btn2);
+      } else {
+        // outlet_2
+        const plate = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.012), plateMat);
+        const sockMat = new THREE.MeshStandardMaterial({ color: fixMat.secondaryColor || '#D8D8D4', roughness: 0.4 });
+        [-0.028, 0.028].forEach((sx) => {
+          const sock = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.01, 16), sockMat);
+          sock.rotation.x = Math.PI / 2;
+          sock.position.set(sx, 0, 0.005);
+          fxGroup.add(sock);
+        });
+        fxGroup.add(plate);
+      }
+
+      fxGroup.userData = { target: { kind: 'fixture', id: fix.id } };
+      group.add(fxGroup);
+    });
+  }, [plan, selection, showFurniture, showCeilingIn3D, cameraPreset, syncMode, renderVersion3D]);
 
   useEffect(() => {
     const scene = sceneRef.current;

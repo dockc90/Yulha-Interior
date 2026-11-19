@@ -77,6 +77,9 @@ export function createOlympicForeon84A(isExtended = true): FloorPlanTemplate {
       { id: 'of-fn-kit-top', name: '주방 쿡탑/싱크', category: 'kitchen_counter', x: 5.75, y: 0.33, width: 3.3, depth: 0.65, height: 0.88, rotation: 0, color: '#F2F0EB' },
       { id: 'of-fn-kit-r', name: '주방 조리대', category: 'kitchen_counter', x: 7.07, y: 1.55, width: 0.65, depth: 1.80, height: 0.88, rotation: 0, color: '#F2F0EB' },
       { id: 'of-fn-kit-pen', name: '아일랜드', category: 'island', x: 6.35, y: 2.13, width: 2.05, depth: 0.65, height: 0.88, rotation: 0, color: '#E5E1D8' },
+      { id: 'of-fn-induct', name: '3구 인덕션', category: 'induction', x: 6.35, y: 2.13, width: 0.60, depth: 0.52, height: 0.03, rotation: 0, color: '#181A1E', materialId: 'ap-induction-black' },
+      { id: 'of-fn-fridge', name: '키친핏 냉장고장', category: 'fridge_cabinet', x: 4.48, y: 1.45, width: 1.35, depth: 0.68, height: 2.25, rotation: Math.PI / 2, color: '#F5F3EE', materialId: 'ap-bespoke-white' },
+      { id: 'of-fn-tallcab', name: '홈바 · 키큰장 (1번/2번 옵션)', category: 'tall_cabinet', x: 4.48, y: 3.05, width: 1.50, depth: 0.65, height: 2.25, rotation: Math.PI / 2, color: '#F3EFEA', variant: 'option2' },
       { id: 'of-fn-dining', name: '식탁', category: 'dining', x: 5.8, y: 3.2, width: 1.5, depth: 0.85, height: 0.75, rotation: 0, color: '#8C6849' },
       // 공용욕실 (욕조 + 세면대 + 양변기)
       { id: 'of-fn-tub1', name: '욕조', category: 'bathtub', x: 12.8, y: 4.02, width: 1.85, depth: 0.76, height: 0.55, rotation: 0, color: '#FFFFFF' },
@@ -87,6 +90,13 @@ export function createOlympicForeon84A(isExtended = true): FloorPlanTemplate {
       { id: 'of-fn-vanity2', name: '세면대', category: 'vanity', x: 3.35, y: 3.35, width: 0.56, depth: 0.44, height: 0.82, rotation: Math.PI / 2, color: '#FFFFFF' },
       { id: 'of-fn-toilet2', name: '양변기', category: 'toilet', x: 3.30, y: 4.10, width: 0.44, depth: 0.64, height: 0.72, rotation: Math.PI / 2, color: '#FFFFFF' },
       { id: 'of-fn-bedm', name: '안방 침대', category: 'bed', x: 1.5, y: 6.8, width: 1.9, depth: 2.1, height: 0.55, rotation: 0, color: '#C8BFAF' },
+    ],
+    fixtures: [
+      { id: 'of-fx-tv', wallId: 'of-w-m-e', type: 'wall_tv', offset: 0.55, elevation: 1.35, side: 'front', materialId: 'el-legrand-white' },
+      { id: 'of-fx-out1', wallId: 'of-w-m-e', type: 'outlet_2', offset: 0.52, elevation: 0.42, side: 'front', materialId: 'el-legrand-white' },
+      { id: 'of-fx-out2', wallId: 'of-w-m-e', type: 'outlet_2', offset: 0.58, elevation: 0.42, side: 'front', materialId: 'el-legrand-white' },
+      { id: 'of-fx-sw1', wallId: 'of-w-k-w', type: 'switch_2', offset: 0.75, elevation: 1.25, side: 'front', materialId: 'el-legrand-white' },
+      { id: 'of-fx-pad', wallId: 'of-w-k-w', type: 'wallpad', offset: 0.85, elevation: 1.40, side: 'front', materialId: 'el-legrand-white' },
     ],
   };
 }

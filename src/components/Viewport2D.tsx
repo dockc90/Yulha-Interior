@@ -63,6 +63,7 @@ export const Viewport2D: React.FC = () => {
     addWall,
     moveWallEndpoint,
     addOpeningToWall,
+    addWallFixture,
     addLightFixture,
     moveFurniture,
     resizeWallLength,
@@ -925,6 +926,11 @@ export const Viewport2D: React.FC = () => {
       }
       if (editorTool === 'add_window') {
         addOpeningToWall(hitWall.wall.id, 'window', hitWall.t);
+        setEditorTool('select');
+        return;
+      }
+      if (editorTool === 'add_outlet') {
+        addWallFixture(hitWall.wall.id, 'outlet_2', hitWall.t);
         setEditorTool('select');
         return;
       }

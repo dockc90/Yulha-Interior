@@ -3,7 +3,9 @@ export type MaterialCategory =
   | 'floor'
   | 'film'
   | 'ceiling'
-  | 'lighting';
+  | 'lighting'
+  | 'electrical'
+  | 'appliance';
 
 export type MaterialPattern =
   | 'solid'
@@ -123,6 +125,9 @@ export type FurnitureCategory =
   | 'dining'
   | 'kitchen_counter'
   | 'island'
+  | 'fridge_cabinet'
+  | 'tall_cabinet'
+  | 'induction'
   | 'wardrobe'
   | 'tv_stand'
   | 'toilet'
@@ -141,6 +146,20 @@ export interface FurnitureItem {
   height: number;
   rotation: number; // radians
   color: string;
+  materialId?: string;
+  variant?: string; // e.g., 'option1' | 'option2' for tall_cabinet, '3burner' for induction
+}
+
+export type WallFixtureType = 'outlet_2' | 'switch_2' | 'wallpad' | 'wall_tv';
+
+export interface WallFixture {
+  id: string;
+  wallId: string;
+  type: WallFixtureType;
+  offset: number; // 0..1 along wall
+  elevation: number; // meters from floor
+  side: 'front' | 'back';
+  materialId: string;
 }
 
 export interface OptionVariant {
@@ -167,6 +186,7 @@ export interface FloorPlanTemplate {
   rooms: Room[];
   lights: LightFixture[];
   furniture: FurnitureItem[];
+  fixtures?: WallFixture[];
   optionVariants?: OptionVariant[];
   activeOptionId?: string;
 }
@@ -190,6 +210,7 @@ export type SelectionTarget =
   | { kind: 'ceiling'; roomId: string }
   | { kind: 'light'; id: string }
   | { kind: 'furniture'; id: string }
+  | { kind: 'fixture'; id: string }
   | null;
 
 export type EditorTool =
@@ -199,6 +220,7 @@ export type EditorTool =
   | 'add_door'
   | 'add_window'
   | 'add_light'
+  | 'add_outlet'
   | 'measure';
 
 export type ViewMode = 'split' | '2d' | '3d';

@@ -13,6 +13,8 @@ import {
   SelectionTarget,
   ViewMode,
   Wall,
+  WallFixture,
+  WallFixtureType,
 } from '../types/interior';
 import { GANGDONG_COMPLEXES } from '../data/gangdongApartments';
 
@@ -21,6 +23,7 @@ interface PlanSnapshot {
   rooms: FloorPlanTemplate['rooms'];
   lights: FloorPlanTemplate['lights'];
   furniture: FloorPlanTemplate['furniture'];
+  fixtures?: WallFixture[];
 }
 
 interface StudioState {
@@ -33,6 +36,10 @@ interface StudioState {
   activeMaterialCategory: MaterialItem['category'];
   editorTool: EditorTool;
   viewMode: ViewMode;
+  syncMode: 'realtime' | 'manual';
+  hasPending3DChanges: boolean;
+  renderVersion3D: number;
+  subscriptionTier: 'free' | 'pro';
   cameraPreset: CameraPreset;
   lightingMode: 'day' | 'night';
   showFurniture: boolean;
@@ -105,6 +112,18 @@ interface StudioState {
     kelvin: KelvinTemp;
   }) => void;
 
+  setSyncMode: (mode: 'realtime' | 'manual') => void;
+  commit3DUpdate: () => void;
+  addWallFixture: (
+    wallId: string,
+    type: WallFixtureType,
+    offset: number,
+    elevation?: number,
+    side?: 'front' | 'back'
+  ) => void;
+  deleteWallFixture: (id: string) => void;
+  setFurnitureVariant: (id: string, variant: string) => void;
+
   undo: () => void;
   redo: () => void;
   resetPlan: () => void;
@@ -118,6 +137,7 @@ const takeSnapshot = (plan: FloorPlanTemplate): PlanSnapshot => ({
   rooms: JSON.parse(JSON.stringify(plan.rooms)),
   lights: JSON.parse(JSON.stringify(plan.lights)),
   furniture: JSON.parse(JSON.stringify(plan.furniture)),
+  fixtures: JSON.parse(JSON.stringify(plan.fixtures || [])),
 });
 
 const initialTemplate = GANGDONG_COMPLEXES[0].plans[0];
@@ -132,6 +152,10 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   activeMaterialCategory: 'floor',
   editorTool: 'select',
   viewMode: 'split',
+  syncMode: 'realtime',
+  hasPending3DChanges: false,
+  renderVersion3D: 1,
+  subscriptionTier: 'free',
   cameraPreset: 'iso',
   lightingMode: 'day',
   showFurniture: true,
@@ -261,11 +285,27 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     else if (target.kind === 'opening') set({ activeMaterialCategory: 'film' });
     else if (target.kind === 'ceiling') set({ activeMaterialCategory: 'ceiling' });
     else if (target.kind === 'light') set({ activeMaterialCategory: 'lighting' });
+    else if (target.kind === 'fixture') set({ activeMaterialCategory: 'electrical' });
+    else if (target.kind === 'furniture') set({ activeMaterialCategory: 'appliance' });
   },
 
   setActiveMaterialCategory: (cat) => set({ activeMaterialCategory: cat }),
   setEditorTool: (tool) => set({ editorTool: tool }),
   setViewMode: (mode) => set({ viewMode: mode }),
+  setSyncMode: (mode) => {
+    set((s) => ({
+      syncMode: mode,
+      hasPending3DChanges: mode === 'realtime' ? false : s.hasPending3DChanges,
+      renderVersion3D: mode === 'realtime' ? s.renderVersion3D + 1 : s.renderVersion3D,
+    }));
+  },
+  commit3DUpdate: () => {
+    set((s) => ({
+      hasPending3DChanges: false,
+      renderVersion3D: s.renderVersion3D + 1,
+    }));
+    get().showToast('2D 수정 사항이 3D 모델에 반영되었습니다.');
+  },
   setCameraPreset: (preset) => set({ cameraPreset: preset }),
   setLightingMode: (mode) => set({ lightingMode: mode }),
   setShowFurniture: (show) => set({ showFurniture: show }),
@@ -337,8 +377,14 @@ export const useStudioStore = create<StudioState>((set, get) => ({
           wall.frontMaterialId = mat.id;
           wall.openings.forEach((o) => (o.frameMaterialId = mat.id));
         }
+      } else if (selection.kind === 'furniture') {
+        const furn = next.furniture.find((f) => f.id === selection.id);
+        if (furn) {
+          furn.materialId = mat.id;
+          furn.color = mat.baseColor;
+        }
       } else {
-        get().showToast('인테리어 필름은 문/창문 프레임 또는 벽면을 선택해 적용하세요.');
+        get().showToast('인테리어 필름은 문/창문 프레임, 벽면, 또는 가구/냉장고장을 선택해 적용하세요.');
         return;
       }
     } else if (mat.category === 'ceiling') {
@@ -354,6 +400,25 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         set({ showCeilingIn3D: true });
       } else {
         get().showToast('천장 자재는 방 또는 천장을 선택해 적용하세요.');
+        return;
+      }
+    } else if (mat.category === 'electrical') {
+      if (selection.kind === 'fixture') {
+        const fix = (next.fixtures || []).find((f) => f.id === selection.id);
+        if (fix) fix.materialId = mat.id;
+      } else {
+        get().showToast('3D 또는 2D에서 콘센트 · 스위치 · 월패드를 선택한 뒤 적용하세요.');
+        return;
+      }
+    } else if (mat.category === 'appliance') {
+      if (selection.kind === 'furniture') {
+        const furn = next.furniture.find((f) => f.id === selection.id);
+        if (furn) {
+          furn.materialId = mat.id;
+          furn.color = mat.baseColor;
+        }
+      } else {
+        get().showToast('냉장고장 · 아일랜드 · 인덕션 · 가구 영역을 선택한 뒤 적용하세요.');
         return;
       }
     }
@@ -754,6 +819,66 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     get().showToast('AI 추천 인테리어 스타일이 2D/3D 전체에 적용되었습니다!');
   },
 
+  addWallFixture: (wallId, type, offset, elevation = 0.45, side = 'front') => {
+    const { plan, past } = get();
+    const snap = takeSnapshot(plan);
+    const next = clonePlan(plan);
+    if (!next.fixtures) next.fixtures = [];
+    const newId = `fix-${Date.now()}`;
+    next.fixtures.push({
+      id: newId,
+      wallId,
+      type,
+      offset: Math.max(0.05, Math.min(0.95, offset)),
+      elevation:
+        type === 'wallpad' ? 1.4 : type === 'switch_2' ? 1.25 : type === 'wall_tv' ? 1.35 : elevation,
+      side,
+      materialId: 'el-legrand-white',
+    });
+    set({
+      plan: next,
+      past: [...past.slice(-24), snap],
+      future: [],
+      selection: { kind: 'fixture', id: newId },
+      activeMaterialCategory: 'electrical',
+    });
+    const labelMap: Record<WallFixtureType, string> = {
+      outlet_2: '2구 콘센트',
+      switch_2: '2구 스위치',
+      wallpad: '홈 월패드',
+      wall_tv: '반매립 TV',
+    };
+    get().showToast(`${labelMap[type]}가 벽면에 배치되었습니다.`);
+  },
+
+  deleteWallFixture: (id) => {
+    const { plan, past } = get();
+    const snap = takeSnapshot(plan);
+    const next = clonePlan(plan);
+    next.fixtures = (next.fixtures || []).filter((f) => f.id !== id);
+    set({
+      plan: next,
+      past: [...past.slice(-24), snap],
+      future: [],
+      selection: null,
+    });
+  },
+
+  setFurnitureVariant: (id, variant) => {
+    const { plan, past } = get();
+    const snap = takeSnapshot(plan);
+    const next = clonePlan(plan);
+    const item = next.furniture.find((f) => f.id === id);
+    if (!item) return;
+    item.variant = variant;
+    set({
+      plan: next,
+      past: [...past.slice(-24), snap],
+      future: [],
+    });
+    get().showToast('빌트인 가구 옵션이 변경되었습니다.');
+  },
+
   undo: () => {
     const { past, future, plan } = get();
     if (past.length === 0) return;
@@ -764,6 +889,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     next.rooms = prev.rooms;
     next.lights = prev.lights;
     next.furniture = prev.furniture;
+    next.fixtures = prev.fixtures || [];
     set({
       plan: next,
       past: past.slice(0, -1),
@@ -781,6 +907,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     next.rooms = nextSnap.rooms;
     next.lights = nextSnap.lights;
     next.furniture = nextSnap.furniture;
+    next.fixtures = nextSnap.fixtures || [];
     set({
       plan: next,
       past: [...past, currentSnap],
@@ -799,3 +926,13 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     }
   },
 }));
+
+let prevPlanRef = useStudioStore.getState().plan;
+useStudioStore.subscribe((state) => {
+  if (state.plan !== prevPlanRef) {
+    prevPlanRef = state.plan;
+    if (state.syncMode === 'manual' && !state.hasPending3DChanges) {
+      useStudioStore.setState({ hasPending3DChanges: true });
+    }
+  }
+});
