@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useStudioStore } from '../store/useStudioStore';
+import { BunyangOptionComposer } from './BunyangOptionComposer';
 import {
   DoorSwing,
   RoomType,
@@ -95,6 +96,7 @@ export const FloorPlanImportModal: React.FC<Props> = ({
 }) => {
   const {
     plan,
+    underlayImage,
     loadPlanTemplate,
     addOptionVariantToCurrentPlan,
     setUnderlayImage,
@@ -108,6 +110,9 @@ export const FloorPlanImportModal: React.FC<Props> = ({
   const [searchResults, setSearchResults] = useState<
     Array<{ url: string; thumbUrl: string; title: string }>
   >([]);
+  const [bunyangStage, setBunyangStage] = useState<'base' | 'option' | 'compose'>('base');
+  const [bunyangBasePlan, setBunyangBasePlan] = useState<{ url: string; title: string } | null>(null);
+  const [bunyangOptionPlan, setBunyangOptionPlan] = useState<{ url: string; title: string } | null>(null);
   const [bunyangOptions, setBunyangOptions] = useState<{
     balcony: 'extended' | 'basic';
     alphaWall: 'keep' | 'open';
@@ -184,11 +189,25 @@ export const FloorPlanImportModal: React.FC<Props> = ({
 
   useEffect(() => {
     if (!open) return;
+    setBunyangOptionPlan(null);
     if (importMode === 'option') {
       setSourceTab('bunyang');
       const nextNum = plan.optionVariants?.length || 1;
       setCustomName(`옵션 ${nextNum}`);
-      setSearchQuery(`${plan.complexName} 분양 옵션 평면도`);
+      setSearchQuery(`${plan.complexName} 분양 옵션`);
+      if (underlayImage) {
+        setBunyangBasePlan({
+          url: underlayImage,
+          title: `${plan.complexName} 기본 도면`,
+        });
+        setBunyangStage('option');
+      } else {
+        setBunyangBasePlan(null);
+        setBunyangStage('base');
+      }
+    } else {
+      setBunyangBasePlan(null);
+      setBunyangStage('base');
     }
     if (initialImageUrl) {
       setPreviewUrl(initialImageUrl);
@@ -202,7 +221,7 @@ export const FloorPlanImportModal: React.FC<Props> = ({
       setSelectedRoomId(null);
       setSelectedOp(null);
     }
-  }, [open, initialImageUrl, importMode, plan.complexName, plan.optionVariants?.length]);
+  }, [open, initialImageUrl, importMode, plan.complexName, plan.optionVariants?.length, underlayImage]);
 
   // Load image and auto-seed major rooms
   useEffect(() => {
@@ -734,6 +753,25 @@ export const FloorPlanImportModal: React.FC<Props> = ({
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === 'string') {
+        if (!previewUrl && sourceTab === 'bunyang') {
+          if (bunyangStage === 'base') {
+            setBunyangBasePlan({
+              url: reader.result,
+              title: file.name || '업로드 타입 도면',
+            });
+            setBunyangStage('option');
+            setSearchResults([]);
+            return;
+          }
+          if (bunyangStage === 'option') {
+            setBunyangOptionPlan({
+              url: reader.result,
+              title: file.name || '업로드 옵션 도면',
+            });
+            setBunyangStage('compose');
+            return;
+          }
+        }
         setPreviewUrl(reader.result);
       }
     };
@@ -886,151 +924,280 @@ export const FloorPlanImportModal: React.FC<Props> = ({
                 </button>
               </div>
 
-              {/* 아파트 / 평형 검색바 */}
-              <form
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  const q = searchQuery.trim();
-                  if (!q) return;
-                  setSearching(true);
-                  try {
-                    const suffix =
-                      sourceTab === 'naver'
-                        ? ' 네이버 부동산 평면도'
-                        : ' 분양 평면도 유상옵션';
-                    const res = await fetch(
-                      `/api/naver/image-search?q=${encodeURIComponent(q + suffix)}`
-                    );
-                    const json = await res.json();
-                    setSearchResults(json.items || []);
-                  } catch {
-                    setSearchResults([]);
-                  } finally {
-                    setSearching(false);
-                  }
-                }}
-                className="flex items-center gap-2"
-              >
-                <div className="relative flex-1">
-                  <Search className="w-4 h-4 text-[#9B9A97] absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder={
-                      sourceTab === 'naver'
-                        ? '아파트 단지명과 타입 입력 (예: 고덕자이 84B, 올림픽파크포레온 84A)'
-                        : '분양 단지명과 타입 입력 (예: 올림픽파크포레온 84A, 더샵 둔촌포레 84)'
-                    }
-                    className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-[#D3D1CB] focus:border-[#2383E2] rounded-lg outline-none text-[#37352F]"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={searching}
-                  className="px-4 py-2 rounded-lg bg-[#37352F] hover:bg-black text-white text-xs font-semibold flex items-center gap-1.5 shrink-0 disabled:opacity-50"
-                >
-                  {searching ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Search className="w-3.5 h-3.5" />
-                  )}
-                  <span>도면 검색</span>
-                </button>
-              </form>
-
-              {/* 빠른 추천 검색어 */}
-              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                <span className="text-[#787774] font-medium">빠른 검색:</span>
-                {['고덕자이 84B', '올림픽파크포레온 84A', '고덕 그라시움 84A', '고덕 아르테온 84A'].map(
-                  (presetQ) => (
-                    <button
-                      key={presetQ}
-                      type="button"
-                      onClick={() => setSearchQuery(presetQ)}
-                      className="px-2 py-0.5 rounded bg-[#F7F7F5] hover:bg-[#EFEFED] border border-[#E9E9E7] text-[#37352F]"
-                    >
-                      {presetQ}
-                    </button>
-                  )
-                )}
-              </div>
-
-              {/* 분양도면 안내 배너 */}
+              {/* 분양도면 3단계 진행 표시 & 3차 합성기 */}
               {sourceTab === 'bunyang' && (
-                <div className="p-3 rounded-lg bg-[#EFF6FF] border border-[#BFDBFE] text-xs text-[#1E40AF] flex items-center gap-2">
-                  <SlidersHorizontal className="w-4 h-4 shrink-0 text-[#2383E2]" />
-                  <span>
-                    {importMode === 'option'
-                      ? '옵션별 분양도면 이미지를 선택해 변환하면 상단에서 기본 도면 ↔ 옵션 도면을 자유롭게 전환할 수 있습니다.'
-                      : '분양 기본 도면을 먼저 적용한 뒤, 상단 [+ 옵션 도면 추가] 버튼으로 유상옵션별 도면을 추가해 비교·선택할 수 있습니다.'}
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px] bg-[#F7F7F5] border border-[#E9E9E7] rounded-lg px-3 py-2">
+                  <span
+                    className={`px-2 py-0.5 rounded font-semibold ${
+                      bunyangStage === 'base'
+                        ? 'bg-[#2383E2] text-white'
+                        : 'bg-emerald-100 text-emerald-800'
+                    }`}
+                  >
+                    1차. 타입 도면 찾기
+                  </span>
+                  <span className="text-[#9B9A97]">→</span>
+                  <span
+                    className={`px-2 py-0.5 rounded font-semibold ${
+                      bunyangStage === 'option'
+                        ? 'bg-[#2383E2] text-white'
+                        : bunyangStage === 'compose'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-[#EFEFED] text-[#787774]'
+                    }`}
+                  >
+                    2차. 옵션 도면 찾기
+                  </span>
+                  <span className="text-[#9B9A97]">→</span>
+                  <span
+                    className={`px-2 py-0.5 rounded font-semibold ${
+                      bunyangStage === 'compose'
+                        ? 'bg-[#2383E2] text-white'
+                        : 'bg-[#EFEFED] text-[#787774]'
+                    }`}
+                  >
+                    3차. 타입 베이스에 옵션 영역 적용
                   </span>
                 </div>
               )}
 
-              {/* 검색된 도면 이미지 그리드 */}
-              {searchResults.length > 0 && (
-                <div className="space-y-1.5">
-                  <div className="text-xs font-semibold text-[#37352F]">
-                    검색된 {sourceTab === 'naver' ? '네이버 부동산 도면' : '분양도면'} ({searchResults.length}건) — 도면을 클릭하면 바로 변환 마법사로 이동합니다
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 max-h-[260px] overflow-y-auto p-1">
-                    {searchResults.map((item, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => {
-                          setCustomName(searchQuery.trim() || item.title.slice(0, 20));
-                          setPreviewUrl(item.thumbUrl);
-                        }}
-                        className="group border border-[#E9E9E7] hover:border-[#2383E2] rounded-lg overflow-hidden bg-white text-left transition shadow-2xs hover:shadow-md"
-                      >
-                        <div className="h-28 bg-[#FBFBFA] flex items-center justify-center p-1.5 overflow-hidden">
-                          <img
-                            src={item.thumbUrl}
-                            alt={item.title}
-                            className="max-h-full max-w-full object-contain group-hover:scale-105 transition"
-                          />
+              {sourceTab === 'bunyang' &&
+              bunyangStage === 'compose' &&
+              bunyangBasePlan &&
+              bunyangOptionPlan ? (
+                <BunyangOptionComposer
+                  baseImageUrl={bunyangBasePlan.url}
+                  baseTitle={bunyangBasePlan.title}
+                  optionImageUrl={bunyangOptionPlan.url}
+                  optionTitle={bunyangOptionPlan.title}
+                  onBackToOptionSearch={() => setBunyangStage('option')}
+                  onConfirmComposite={(compositedDataUrl) => {
+                    setCustomName(
+                      `${bunyangBasePlan.title.slice(0, 14)} + ${
+                        bunyangOptionPlan.title.slice(0, 14) || '옵션'
+                      }`
+                    );
+                    setPreviewUrl(compositedDataUrl);
+                  }}
+                />
+              ) : (
+                <>
+                  {/* 2차 단계일 때 선택된 1차 타입 도면 요약 카드 */}
+                  {sourceTab === 'bunyang' && bunyangStage === 'option' && bunyangBasePlan && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-lg bg-[#EFF6FF] border border-[#BFDBFE]">
+                      <div className="flex items-center gap-2.5">
+                        <img
+                          src={bunyangBasePlan.url}
+                          alt={bunyangBasePlan.title}
+                          className="w-12 h-12 rounded border border-[#BFDBFE] bg-white object-contain shrink-0"
+                        />
+                        <div className="text-xs">
+                          <div className="font-bold text-[#1E40AF]">
+                            1차 타입 도면 선택됨: {bunyangBasePlan.title}
+                          </div>
+                          <div className="text-[11px] text-[#1E3A8A]">
+                            이제 아래에서 <b>2차 옵션 도면</b>을 검색·선택하면 타입 도면 위에 원하는 영역을 겹쳐 적용할 수 있습니다.
+                          </div>
                         </div>
-                        <div className="px-2 py-1.5 border-t border-[#F1F1EF] text-[10px] text-[#37352F] font-medium truncate">
-                          {item.title || searchQuery}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBunyangStage('base');
+                            setSearchResults([]);
+                          }}
+                          className="px-2.5 py-1.5 rounded-md bg-white border border-[#BFDBFE] text-[11px] font-semibold text-[#1E40AF] hover:bg-[#DBEAFE]"
+                        >
+                          타입 도면 다시 찾기
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCustomName(bunyangBasePlan.title.slice(0, 20) || '분양 타입 도면');
+                            setPreviewUrl(bunyangBasePlan.url);
+                          }}
+                          className="px-2.5 py-1.5 rounded-md bg-[#2383E2] hover:bg-[#1a6ec2] text-white text-[11px] font-semibold"
+                        >
+                          옵션 없이 타입 도면만 변환 →
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
-              {/* 보조: 직접 이미지 업로드 / 붙여넣기 */}
-              <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-lg bg-[#FBFBFA] border border-[#E9E9E7]">
-                <span className="text-xs text-[#787774]">
-                  원하는 이미지가 있다면 바로 <kbd className="px-1.5 py-0.5 bg-[#EFEFED] border border-[#E9E9E7] rounded text-[11px]">Ctrl + V</kbd> 붙여넣기하거나 파일로 올릴 수도 있습니다.
-                </span>
-                <div className="flex items-center gap-2">
-                  <label className="cursor-pointer px-2.5 py-1 bg-white border border-[#D3D1CB] hover:bg-[#EFEFED] rounded-md text-xs font-semibold text-[#37352F] flex items-center gap-1">
-                    <Upload className="w-3.5 h-3.5" />
-                    파일 업로드
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleFile(file);
-                      }}
-                    />
-                  </label>
-                  <a
-                    href="https://new.land.naver.com/complexes?ms=37.5301,127.1238,15&a=APT&e=RETAIL"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-xs font-semibold"
+                  {/* 아파트 / 평형 검색바 */}
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      const q = searchQuery.trim();
+                      if (!q) return;
+                      setSearching(true);
+                      try {
+                        const suffix =
+                          sourceTab === 'naver'
+                            ? ' 네이버 부동산 평면도'
+                            : bunyangStage === 'base'
+                            ? ' 분양 기본형 평면도'
+                            : ' 분양 유상옵션 도면';
+                        const res = await fetch(
+                          `/api/naver/image-search?q=${encodeURIComponent(q + suffix)}`
+                        );
+                        const json = await res.json();
+                        setSearchResults(json.items || []);
+                      } catch {
+                        setSearchResults([]);
+                      } finally {
+                        setSearching(false);
+                      }
+                    }}
+                    className="flex items-center gap-2"
                   >
-                    네이버 부동산 열기
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
-                </div>
-              </div>
+                    <div className="relative flex-1">
+                      <Search className="w-4 h-4 text-[#9B9A97] absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder={
+                          sourceTab === 'naver'
+                            ? '아파트 단지명과 타입 입력 (예: 고덕자이 84B, 올림픽파크포레온 84A)'
+                            : bunyangStage === 'base'
+                            ? '1차 타입 도면 검색: 단지명 + 타입 (예: 올림픽파크포레온 84A)'
+                            : '2차 옵션 도면 검색: 단지명 + 옵션명 (예: 올림픽파크포레온 84A 주방 옵션)'
+                        }
+                        className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-[#D3D1CB] focus:border-[#2383E2] rounded-lg outline-none text-[#37352F]"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={searching}
+                      className="px-4 py-2 rounded-lg bg-[#37352F] hover:bg-black text-white text-xs font-semibold flex items-center gap-1.5 shrink-0 disabled:opacity-50"
+                    >
+                      {searching ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Search className="w-3.5 h-3.5" />
+                      )}
+                      <span>
+                        {sourceTab === 'bunyang'
+                          ? bunyangStage === 'base'
+                            ? '타입 도면 검색'
+                            : '옵션 도면 검색'
+                          : '도면 검색'}
+                      </span>
+                    </button>
+                  </form>
+
+                  {/* 빠른 추천 검색어 */}
+                  <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                    <span className="text-[#787774] font-medium">빠른 검색:</span>
+                    {['고덕자이 84B', '올림픽파크포레온 84A', '고덕 그라시움 84A', '고덕 아르테온 84A'].map(
+                      (presetQ) => (
+                        <button
+                          key={presetQ}
+                          type="button"
+                          onClick={() => setSearchQuery(presetQ)}
+                          className="px-2 py-0.5 rounded bg-[#F7F7F5] hover:bg-[#EFEFED] border border-[#E9E9E7] text-[#37352F]"
+                        >
+                          {presetQ}
+                        </button>
+                      )
+                    )}
+                  </div>
+
+                  {/* 검색된 도면 이미지 그리드 */}
+                  {searchResults.length > 0 && (
+                    <div className="space-y-1.5">
+                      <div className="text-xs font-semibold text-[#37352F]">
+                        {sourceTab === 'naver'
+                          ? `검색된 네이버 부동산 도면 (${searchResults.length}건) — 도면을 클릭하면 바로 변환 마법사로 이동합니다`
+                          : bunyangStage === 'base'
+                          ? `1차 타입 도면 검색 결과 (${searchResults.length}건) — 기본 타입 도면을 선택하세요`
+                          : `2차 옵션 도면 검색 결과 (${searchResults.length}건) — 타입 도면 위에 적용할 옵션 도면을 선택하세요`}
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 max-h-[260px] overflow-y-auto p-1">
+                        {searchResults.map((item, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => {
+                              if (sourceTab === 'bunyang') {
+                                if (bunyangStage === 'base') {
+                                  const title = searchQuery.trim() || item.title.slice(0, 20) || '타입 도면';
+                                  setBunyangBasePlan({ url: item.thumbUrl, title });
+                                  setBunyangStage('option');
+                                  setSearchResults([]);
+                                  setSearchQuery((prev) =>
+                                    prev.trim()
+                                      ? prev.includes('옵션')
+                                        ? prev
+                                        : `${prev.trim()} 유상옵션`
+                                      : ''
+                                  );
+                                } else {
+                                  const title = searchQuery.trim() || item.title.slice(0, 20) || '옵션 도면';
+                                  setBunyangOptionPlan({ url: item.thumbUrl, title });
+                                  setBunyangStage('compose');
+                                }
+                              } else {
+                                setCustomName(searchQuery.trim() || item.title.slice(0, 20));
+                                setPreviewUrl(item.thumbUrl);
+                              }
+                            }}
+                            className="group border border-[#E9E9E7] hover:border-[#2383E2] rounded-lg overflow-hidden bg-white text-left transition shadow-2xs hover:shadow-md"
+                          >
+                            <div className="h-28 bg-[#FBFBFA] flex items-center justify-center p-1.5 overflow-hidden">
+                              <img
+                                src={item.thumbUrl}
+                                alt={item.title}
+                                className="max-h-full max-w-full object-contain group-hover:scale-105 transition"
+                              />
+                            </div>
+                            <div className="px-2 py-1.5 border-t border-[#F1F1EF] text-[10px] text-[#37352F] font-medium truncate">
+                              {item.title || searchQuery}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 보조: 직접 이미지 업로드 / 붙여넣기 */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-lg bg-[#FBFBFA] border border-[#E9E9E7]">
+                    <span className="text-xs text-[#787774]">
+                      {sourceTab === 'bunyang'
+                        ? bunyangStage === 'base'
+                          ? '타입 도면 이미지를 Ctrl + V 붙여넣기하거나 파일로 올릴 수도 있습니다.'
+                          : '옵션 도면 이미지를 Ctrl + V 붙여넣기하거나 파일로 올릴 수도 있습니다.'
+                        : '원하는 이미지가 있다면 바로 Ctrl + V 붙여넣기하거나 파일로 올릴 수도 있습니다.'}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <label className="cursor-pointer px-2.5 py-1 bg-white border border-[#D3D1CB] hover:bg-[#EFEFED] rounded-md text-xs font-semibold text-[#37352F] flex items-center gap-1">
+                        <Upload className="w-3.5 h-3.5" />
+                        파일 업로드
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleFile(file);
+                          }}
+                        />
+                      </label>
+                      <a
+                        href="https://new.land.naver.com/complexes?ms=37.5301,127.1238,15&a=APT&e=RETAIL"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-xs font-semibold"
+                      >
+                        네이버 부동산 열기
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           ) : (
             <>
