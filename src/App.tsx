@@ -5,6 +5,7 @@ import { Viewport3D } from './components/Viewport3D';
 import { MaterialPanel } from './components/MaterialPanel';
 import { AiAndEstimateModal } from './components/AiAndEstimateModal';
 import { FloorPlanImportModal } from './components/FloorPlanImportModal';
+import { StudioHomeDashboard } from './components/StudioHomeDashboard';
 import { saveBlueprintForType } from './utils/savedBlueprints';
 import {
   MousePointer2,
@@ -56,8 +57,31 @@ export function App() {
 
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importMode, setImportMode] = useState<'base' | 'option'>('base');
+  const [importSourceTab, setImportSourceTab] = useState<'naver' | 'bunyang'>('naver');
   const [pastedImageUrl, setPastedImageUrl] = useState<string | null>(null);
   const [modalMode, setModalMode] = useState<'ai' | 'estimate' | null>(null);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!hasSelectedPlan || importModalOpen || modalMode) return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        redo();
+      } else if (e.key === 'Escape') {
+        setEditorTool('select');
+        useStudioStore.getState().selectTarget(null);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [hasSelectedPlan, importModalOpen, modalMode, undo, redo, setEditorTool]);
 
   useEffect(() => {
     const onWindowPaste = (e: ClipboardEvent) => {
@@ -338,102 +362,95 @@ export function App() {
 
       {/* Main Studio Body */}
       <div className="flex-1 flex min-h-0 overflow-hidden relative">
-        {/* Left Vertical CAD Tool Dock (Notion Sidebar Surface) */}
-        <nav className="w-14 shrink-0 border-r border-[#E9E9E7] bg-[#F7F7F5] flex flex-col items-center py-2.5 gap-1.5">
-          {tools.map((t) => {
-            const active = editorTool === t.id;
-            const isDemolish = t.id === 'demolish';
-            return (
-              <button
-                key={t.id}
-                onClick={() => setEditorTool(t.id)}
-                className={`w-11 py-2 rounded-lg flex flex-col items-center justify-center gap-1 transition ${
-                  active
-                    ? isDemolish
-                      ? 'bg-[#FBE4E4] text-[#E03E3E] border border-[#F5C2C2]'
-                      : 'bg-[#EBF5FF] text-[#2383E2] border border-[#BFE0FF]'
-                    : 'text-[#787774] hover:text-[#37352F] hover:bg-[#EFEFEE]'
-                }`}
-                title={t.label}
-              >
-                {t.icon}
-                <span className="text-[9px] font-semibold">{t.label}</span>
-              </button>
-            );
-          })}
+        {/* Left Vertical CAD Tool Dock (only when plan is active) */}
+        {hasSelectedPlan && (
+          <nav className="w-14 shrink-0 border-r border-[#E9E9E7] bg-[#F7F7F5] flex flex-col items-center py-2.5 gap-1.5">
+            {tools.map((t) => {
+              const active = editorTool === t.id;
+              const isDemolish = t.id === 'demolish';
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setEditorTool(t.id)}
+                  className={`w-11 py-2 rounded-lg flex flex-col items-center justify-center gap-1 transition ${
+                    active
+                      ? isDemolish
+                        ? 'bg-[#FBE4E4] text-[#E03E3E] border border-[#F5C2C2]'
+                        : 'bg-[#EBF5FF] text-[#2383E2] border border-[#BFE0FF]'
+                      : 'text-[#787774] hover:text-[#37352F] hover:bg-[#EFEFEE]'
+                  }`}
+                  title={t.label}
+                >
+                  {t.icon}
+                  <span className="text-[9px] font-semibold">{t.label}</span>
+                </button>
+              );
+            })}
 
-          <div className="w-8 h-px bg-[#E9E9E7] my-1" />
+            <div className="w-8 h-px bg-[#E9E9E7] my-1" />
 
-          <button
-            onClick={() => setShowFurniture(!showFurniture)}
-            className={`w-11 py-2 rounded-lg flex flex-col items-center justify-center gap-1 transition ${
-              showFurniture
-                ? 'bg-white text-[#37352F] border border-[#E9E9E7] shadow-2xs'
-                : 'text-[#9B9A97] hover:text-[#37352F] hover:bg-[#EFEFEE]'
-            }`}
-            title="기본 가구 배치 표시/숨김"
-          >
-            <Sofa className="w-4 h-4" />
-            <span className="text-[9px] font-semibold">가구</span>
-          </button>
+            <button
+              onClick={() => setShowFurniture(!showFurniture)}
+              className={`w-11 py-2 rounded-lg flex flex-col items-center justify-center gap-1 transition ${
+                showFurniture
+                  ? 'bg-white text-[#37352F] border border-[#E9E9E7] shadow-2xs'
+                  : 'text-[#9B9A97] hover:text-[#37352F] hover:bg-[#EFEFEE]'
+              }`}
+              title="기본 가구 배치 표시/숨김"
+            >
+              <Sofa className="w-4 h-4" />
+              <span className="text-[9px] font-semibold">가구</span>
+            </button>
 
-          <button
-            onClick={() => setShowDimensions(!showDimensions)}
-            className={`w-11 py-2 rounded-lg flex flex-col items-center justify-center gap-1 transition ${
-              showDimensions
-                ? 'bg-white text-[#37352F] border border-[#E9E9E7] shadow-2xs'
-                : 'text-[#9B9A97] hover:text-[#37352F] hover:bg-[#EFEFEE]'
-            }`}
-            title="2D 치수 표시/숨김"
-          >
-            <Ruler className="w-4 h-4" />
-            <span className="text-[9px] font-semibold">치수</span>
-          </button>
-        </nav>
+            <button
+              onClick={() => setShowDimensions(!showDimensions)}
+              className={`w-11 py-2 rounded-lg flex flex-col items-center justify-center gap-1 transition ${
+                showDimensions
+                  ? 'bg-white text-[#37352F] border border-[#E9E9E7] shadow-2xs'
+                  : 'text-[#9B9A97] hover:text-[#37352F] hover:bg-[#EFEFEE]'
+              }`}
+              title="2D 치수 표시/숨김"
+            >
+              <Ruler className="w-4 h-4" />
+              <span className="text-[9px] font-semibold">치수</span>
+            </button>
+          </nav>
+        )}
 
-        {/* Coupled 2D & 3D Viewports or Clean Notion Empty State */}
+        {/* Coupled 2D & 3D Viewports or Full Studio Home Dashboard */}
         <main className="flex-1 flex min-w-0 min-h-0">
           {!hasSelectedPlan ? (
-            <div className="w-full h-full bg-[#FBFBFA] flex items-center justify-center p-6">
-              <div className="max-w-md w-full bg-white border border-[#E9E9E7] rounded-2xl p-8 text-center shadow-xs space-y-5">
-                <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
-                  <ScanLine className="w-6 h-6" />
-                </div>
-                <div className="space-y-2">
-                  <h1 className="text-lg font-bold text-[#37352F]">
-                    Yulha Interior Studio
-                  </h1>
-                  <p className="text-xs text-[#787774] leading-relaxed">
-                    네이버 부동산 평면도를 캡처해 바로{' '}
-                    <kbd className="px-1.5 py-0.5 bg-[#EFEFED] border border-[#E9E9E7] rounded text-[11px] font-semibold text-[#37352F]">
-                      Ctrl + V
-                    </kbd>{' '}
-                    붙여넣기하거나 업로드하세요.
-                    <br />
-                    AutoCAD 스타일 2D 도면(치수 편집)과 사실적 3D 모델로 즉시 변환됩니다.
-                  </p>
-                </div>
-                <div className="space-y-2.5">
-                  <button
-                    onClick={() => {
-                      setPastedImageUrl(null);
-                      setImportModalOpen(true);
-                    }}
-                    className="w-full py-2.5 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center justify-center gap-2 transition shadow-xs"
-                  >
-                    <ScanLine className="w-4 h-4" />
-                    <span>아파트 도면 검색 (네이버 · 분양도면 옵션)</span>
-                  </button>
-                  <button
-                    onClick={handleLoadLocal}
-                    className="w-full py-2.5 px-4 rounded-lg bg-[#F7F7F5] hover:bg-[#EFEFED] border border-[#E9E9E7] text-[#37352F] text-xs font-semibold flex items-center justify-center gap-2 transition"
-                  >
-                    <FolderOpen className="w-4 h-4 text-[#787774]" />
-                    <span>저장된 프로젝트 불러오기</span>
-                  </button>
-                </div>
-              </div>
-            </div>
+            <StudioHomeDashboard
+              onOpenNaverSearch={() => {
+                setImportMode('base');
+                setImportSourceTab('naver');
+                setPastedImageUrl(null);
+                setImportModalOpen(true);
+              }}
+              onOpenBunyangSearch={() => {
+                setImportMode('base');
+                setImportSourceTab('bunyang');
+                setPastedImageUrl(null);
+                setImportModalOpen(true);
+              }}
+              onUploadFile={(file) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                  if (typeof reader.result === 'string') {
+                    setImportMode('base');
+                    setImportSourceTab('naver');
+                    setPastedImageUrl(reader.result);
+                    setImportModalOpen(true);
+                  }
+                };
+                reader.readAsDataURL(file);
+              }}
+              onSelectPresetPlan={(presetPlan) => {
+                useStudioStore.getState().loadPlanTemplate(presetPlan);
+                showToast(`${presetPlan.complexName} ${presetPlan.typeName} 도면을 열었습니다.`);
+              }}
+              onLoadSavedPlan={handleLoadLocal}
+            />
           ) : (
             <>
               {(viewMode === 'split' || viewMode === '2d') && (
@@ -461,8 +478,8 @@ export function App() {
           )}
         </main>
 
-        {/* Right Material & Property Panel */}
-        <MaterialPanel />
+        {/* Right Material & Property Panel (only when plan is active) */}
+        {hasSelectedPlan && <MaterialPanel />}
 
         {/* Notion-style Floating Toast */}
         {toastMessage && (
@@ -478,6 +495,7 @@ export function App() {
         onClose={() => setImportModalOpen(false)}
         initialImageUrl={pastedImageUrl}
         importMode={importMode}
+        initialSourceTab={importSourceTab}
       />
       <AiAndEstimateModal
         mode={modalMode}

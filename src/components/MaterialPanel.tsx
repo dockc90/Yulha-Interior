@@ -40,6 +40,7 @@ export const MaterialPanel: React.FC = () => {
     toggleLight,
     deleteLight,
     setEditorTool,
+    showToast,
   } = useStudioStore();
 
   const [search, setSearch] = useState('');
@@ -107,10 +108,72 @@ export const MaterialPanel: React.FC = () => {
         </div>
 
         {!selection && (
-          <div className="p-2.5 rounded-lg bg-white border border-[#E9E9E7] text-xs text-[#787774] leading-relaxed">
-            2D 도면 또는 3D 모델에서 <strong className="text-[#37352F]">방(바닥)</strong>,{' '}
-            <strong className="text-[#37352F]">벽면</strong>,{' '}
-            <strong className="text-[#37352F]">문/창문</strong>을 클릭하면 자재를 바로 적용할 수 있습니다.
+          <div className="space-y-2.5">
+            <div className="p-2.5 rounded-lg bg-white border border-[#E9E9E7] text-xs text-[#787774] leading-relaxed">
+              2D 도면 또는 3D 모델에서 <strong className="text-[#37352F]">방(바닥)</strong>,{' '}
+              <strong className="text-[#37352F]">벽면</strong>,{' '}
+              <strong className="text-[#37352F]">문/창문</strong>을 클릭하면 자재를 바로 적용할 수 있습니다.
+            </div>
+            <div className="space-y-1.5">
+              <div className="text-[11px] font-semibold text-[#37352F]">
+                원클릭 전체 스타일 패키지
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {[
+                  {
+                    label: '모던 화이트',
+                    sub: '화이트 실크 + 화이트워시',
+                    swatch: '#F8FAFC',
+                    wp: 'wp-lx-diamang-white',
+                    fl: 'fl-kujung-white-wash',
+                  },
+                  {
+                    label: '웜 미니멀 우드',
+                    sub: '아이보리 + 내추럴 오크',
+                    swatch: '#E5D3B3',
+                    wp: 'wp-lx-therapy-ivory',
+                    fl: 'fl-kujung-natural-oak',
+                  },
+                  {
+                    label: '호텔 모던 그레이',
+                    sub: '웜그레이 + 포세린 콘크리트',
+                    swatch: '#9CA3AF',
+                    wp: 'wp-lx-diamang-warmgray',
+                    fl: 'fl-porcelain-concrete',
+                  },
+                  {
+                    label: '내추럴 베이지',
+                    sub: '샌드 + 사하라 와이드',
+                    swatch: '#D6C7B2',
+                    wp: 'wp-gaenari-sand',
+                    fl: 'fl-dongwha-sahara-wide',
+                  },
+                ].map((preset) => (
+                  <button
+                    key={preset.label}
+                    onClick={() => {
+                      const wpMat = getMaterialById(preset.wp);
+                      const flMat = getMaterialById(preset.fl);
+                      if (wpMat) applyMaterialToAllRooms(wpMat);
+                      if (flMat) applyMaterialToAllRooms(flMat);
+                      showToast(`'${preset.label}' 스타일을 전체 공간에 적용했습니다.`);
+                    }}
+                    className="p-2 rounded-lg bg-white hover:bg-[#EBF5FF] border border-[#E9E9E7] hover:border-[#BFE0FF] text-left transition flex items-center gap-2"
+                  >
+                    <span
+                      className="w-4 h-4 rounded-full border border-[#D3D1CB] shrink-0"
+                      style={{ backgroundColor: preset.swatch }}
+                    />
+                    <div className="min-w-0">
+                      <div className="text-[11px] font-bold text-[#37352F] truncate">
+                        {preset.label}
+                      </div>
+                      <div className="text-[9px] text-[#787774] truncate">{preset.sub}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 

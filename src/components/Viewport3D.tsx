@@ -1,11 +1,11 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { useStudioStore } from '../store/useStudioStore';
 import { getMaterialById } from '../data/materials';
 import { getThreeTexture } from '../utils/proceduralTextures';
 import { KelvinTemp, Room, Wall } from '../types/interior';
-import { Camera, Eye, EyeOff } from 'lucide-react';
+import { Camera, Eye, EyeOff, Sun, Sunset, Moon } from 'lucide-react';
 
 function kelvinToHex(k: KelvinTemp): number {
   if (k === '3000K') return 0xffc978;
@@ -20,6 +20,13 @@ export const Viewport3D: React.FC = () => {
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
   const modelGroupRef = useRef<THREE.Group | null>(null);
+  const lightsRef = useRef<{
+    ambient: THREE.AmbientLight;
+    hemi: THREE.HemisphereLight;
+    keyFill: THREE.DirectionalLight;
+    rimFill: THREE.DirectionalLight;
+  } | null>(null);
+  const [lightingMood, setLightingMood] = useState<'day' | 'sunset' | 'night'>('day');
 
   const {
     plan,
@@ -94,6 +101,8 @@ export const Viewport3D: React.FC = () => {
     const rimFill = new THREE.DirectionalLight(0xeef4ff, 0.28);
     rimFill.position.set(14, 10, -10);
     scene.add(rimFill);
+
+    lightsRef.current = { ambient, hemi, keyFill, rimFill };
 
     // Subtle gallery ground grid
     const grid = new THREE.GridHelper(32, 32, 0xd8d6d0, 0xebeae6);
@@ -915,6 +924,51 @@ export const Viewport3D: React.FC = () => {
     }
   }, [plan, selection, showFurniture, showCeilingIn3D, cameraPreset]);
 
+  useEffect(() => {
+    const scene = sceneRef.current;
+    const renderer = rendererRef.current;
+    const lights = lightsRef.current;
+    if (!scene || !renderer || !lights) return;
+
+    if (lightingMood === 'day') {
+      scene.background = new THREE.Color(0xf3f3f1);
+      lights.ambient.color.setHex(0xfffdf9);
+      lights.ambient.intensity = 0.58;
+      lights.hemi.color.setHex(0xffffff);
+      lights.hemi.groundColor.setHex(0xd6d3cd);
+      lights.hemi.intensity = 0.85;
+      lights.keyFill.color.setHex(0xfffcf5);
+      lights.keyFill.intensity = 0.48;
+      lights.rimFill.color.setHex(0xeef4ff);
+      lights.rimFill.intensity = 0.28;
+      renderer.toneMappingExposure = 1.05;
+    } else if (lightingMood === 'sunset') {
+      scene.background = new THREE.Color(0xefe6db);
+      lights.ambient.color.setHex(0xffd8b0);
+      lights.ambient.intensity = 0.45;
+      lights.hemi.color.setHex(0xffdfb8);
+      lights.hemi.groundColor.setHex(0xb89f8d);
+      lights.hemi.intensity = 0.72;
+      lights.keyFill.color.setHex(0xffb46b);
+      lights.keyFill.intensity = 0.68;
+      lights.rimFill.color.setHex(0xd6c8ff);
+      lights.rimFill.intensity = 0.22;
+      renderer.toneMappingExposure = 1.02;
+    } else {
+      scene.background = new THREE.Color(0x161b24);
+      lights.ambient.color.setHex(0x4c5a78);
+      lights.ambient.intensity = 0.28;
+      lights.hemi.color.setHex(0x3a4863);
+      lights.hemi.groundColor.setHex(0x1f2229);
+      lights.hemi.intensity = 0.35;
+      lights.keyFill.color.setHex(0x9bb5e8);
+      lights.keyFill.intensity = 0.22;
+      lights.rimFill.color.setHex(0x6c82ad);
+      lights.rimFill.intensity = 0.18;
+      renderer.toneMappingExposure = 0.92;
+    }
+  }, [lightingMood]);
+
   const handleScreenshot = () => {
     const renderer = rendererRef.current;
     if (!renderer) return;
@@ -956,6 +1010,34 @@ export const Viewport3D: React.FC = () => {
             }`}
           >
             {label}
+          </button>
+        ))}
+
+        <div className="w-px h-4 bg-[#E9E9E7] mx-0.5" />
+
+        {(
+          [
+            ['day', '주간', <Sun key="d" className="w-3.5 h-3.5" />],
+            ['sunset', '노을', <Sunset key="s" className="w-3.5 h-3.5" />],
+            ['night', '야간', <Moon key="n" className="w-3.5 h-3.5" />],
+          ] as const
+        ).map(([mood, label, icon]) => (
+          <button
+            key={mood}
+            onClick={() => setLightingMood(mood)}
+            title={`${label} 조명 분위기`}
+            className={`px-1.5 py-1 text-xs rounded-md flex items-center gap-1 transition ${
+              lightingMood === mood
+                ? mood === 'night'
+                  ? 'bg-[#1F2937] text-amber-300 font-semibold'
+                  : mood === 'sunset'
+                  ? 'bg-[#FAEBDD] text-[#D9730D] font-semibold'
+                  : 'bg-[#FFF9DB] text-[#B45309] font-semibold'
+                : 'text-[#787774] hover:text-[#37352F] hover:bg-[#EFEFEE]'
+            }`}
+          >
+            {icon}
+            <span className="hidden xl:inline">{label}</span>
           </button>
         ))}
 

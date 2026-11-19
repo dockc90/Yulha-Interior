@@ -56,6 +56,7 @@ interface Props {
   onClose: () => void;
   initialImageUrl?: string | null;
   importMode?: 'base' | 'option';
+  initialSourceTab?: 'naver' | 'bunyang';
 }
 
 const ROOM_PRESETS: Array<{ label: string; type: RoomType | 'auto'; color: string }> = [
@@ -93,6 +94,7 @@ export const FloorPlanImportModal: React.FC<Props> = ({
   onClose,
   initialImageUrl,
   importMode = 'base',
+  initialSourceTab,
 }) => {
   const {
     plan,
@@ -208,6 +210,10 @@ export const FloorPlanImportModal: React.FC<Props> = ({
     } else {
       setBunyangBasePlan(null);
       setBunyangStage('base');
+      if (initialSourceTab) {
+        setSourceTab(initialSourceTab);
+        setSearchResults([]);
+      }
     }
     if (initialImageUrl) {
       setPreviewUrl(initialImageUrl);
@@ -221,7 +227,7 @@ export const FloorPlanImportModal: React.FC<Props> = ({
       setSelectedRoomId(null);
       setSelectedOp(null);
     }
-  }, [open, initialImageUrl, importMode, plan.complexName, plan.optionVariants?.length, underlayImage]);
+  }, [open, initialImageUrl, importMode, initialSourceTab, plan.complexName, plan.optionVariants?.length, underlayImage]);
 
   // Load image and auto-seed major rooms
   useEffect(() => {
