@@ -23,9 +23,11 @@ export const InspectorPanel: React.FC = () => {
     applyMaterial,
     applyMaterialToAll,
     updateRoom,
+    deleteRoom,
     toggleBlind,
     deleteOpening,
     deleteWall,
+    resizeWallLength,
     rotateObject,
     toggleObjectPower,
     setObjectVariant,
@@ -34,6 +36,7 @@ export const InspectorPanel: React.FC = () => {
   } = useProjectStore();
 
   const [query, setQuery] = useState('');
+  const [wallLenInput, setWallLenInput] = useState('');
 
   const selRoom = selection?.kind === 'room' ? project.rooms.find((r) => r.id === selection.id) : null;
   const selWall = selection?.kind === 'wall' ? project.walls.find((w) => w.id === selection.id) : null;
@@ -85,11 +88,25 @@ export const InspectorPanel: React.FC = () => {
 
         {selRoom && (
           <div className="p-2.5 rounded-lg bg-white border border-[#E9E9E7] space-y-2 text-xs">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-[#37352F]">{selRoom.name}</span>
-              <span className="text-[11px] text-[#787774]">
-                {getMaterial(selRoom.floorMaterialId).name}
-              </span>
+            <div className="flex items-center justify-between gap-2">
+              <input
+                type="text"
+                value={selRoom.name}
+                onChange={(e) => updateRoom(selRoom.id, { name: e.target.value })}
+                className="font-bold text-[#37352F] bg-[#F7F7F5] focus:bg-white border border-transparent focus:border-[#0F7B6C] rounded px-1.5 py-0.5 text-xs outline-none w-32"
+              />
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-[#787774] truncate max-w-[110px]">
+                  {getMaterial(selRoom.floorMaterialId).name}
+                </span>
+                <button
+                  onClick={() => deleteRoom(selRoom.id)}
+                  className="p-1 rounded bg-[#F7F7F5] hover:bg-[#FBE4E4] text-[#787774] hover:text-[#E03E3E]"
+                  title="방 삭제 (Delete)"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
             <div className="flex items-center gap-1.5">
               <button
@@ -122,20 +139,44 @@ export const InspectorPanel: React.FC = () => {
         )}
 
         {selWall && (
-          <div className="p-2.5 rounded-lg bg-white border border-[#E9E9E7] flex items-center justify-between text-xs">
-            <div>
-              <div className="font-bold text-[#37352F]">벽체 ({selWall.isExterior ? '외벽' : '내벽'})</div>
-              <div className="text-[11px] text-[#787774]">
-                길이 {Math.round(Math.hypot(selWall.x2 - selWall.x1, selWall.y2 - selWall.y1) * 1000)}mm · {getMaterial(selWall.frontMaterialId).name}
+          <div className="p-2.5 rounded-lg bg-white border border-[#E9E9E7] space-y-2 text-xs">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="font-bold text-[#37352F]">벽체 ({selWall.isExterior ? '외벽' : '내벽'})</div>
+                <div className="text-[11px] text-[#787774]">
+                  길이 {Math.round(Math.hypot(selWall.x2 - selWall.x1, selWall.y2 - selWall.y1) * 1000)}mm · {getMaterial(selWall.frontMaterialId).name}
+                </div>
               </div>
+              <button
+                onClick={() => deleteWall(selWall.id)}
+                className="p-1.5 rounded bg-[#F7F7F5] hover:bg-[#FBE4E4] text-[#787774] hover:text-[#E03E3E]"
+                title="벽체 삭제 (Delete)"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
             </div>
-            <button
-              onClick={() => deleteWall(selWall.id)}
-              className="p-1.5 rounded bg-[#F7F7F5] hover:bg-[#FBE4E4] text-[#787774] hover:text-[#E03E3E]"
-              title="벽체 삭제"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-[#787774]">길이 수정(mm):</span>
+              <input
+                type="number"
+                placeholder={String(Math.round(Math.hypot(selWall.x2 - selWall.x1, selWall.y2 - selWall.y1) * 1000))}
+                value={wallLenInput}
+                onChange={(e) => setWallLenInput(e.target.value)}
+                className="w-20 px-2 py-0.5 border border-[#D3D1CB] rounded text-[11px] font-mono"
+              />
+              <button
+                onClick={() => {
+                  const v = Number(wallLenInput);
+                  if (v >= 200) {
+                    resizeWallLength(selWall.id, v);
+                    setWallLenInput('');
+                  }
+                }}
+                className="px-2 py-0.5 rounded bg-[#37352F] text-white text-[11px] font-semibold"
+              >
+                적용
+              </button>
+            </div>
           </div>
         )}
 

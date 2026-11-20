@@ -120,6 +120,8 @@ export interface ProjectData {
   areaSqm: number;
   width: number;
   depth: number;
+  underlayWidthM?: number;
+  underlayDepthM?: number;
   rooms: RoomZone[];
   walls: WallSegment[];
   openings: OpeningItem[];
@@ -135,9 +137,11 @@ export type SelectionRef =
 
 export type ToolMode =
   | 'select'
+  | 'add_room'
   | 'draw_wall'
   | 'add_door'
   | 'add_window'
   | 'add_outlet'
   | 'add_light'
-  | 'add_furniture';
+  | 'add_furniture'
+  | 'calibrate';

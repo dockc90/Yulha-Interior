@@ -159,37 +159,15 @@ export function createShowcase34Plan(): ProjectData {
 export function createBlankCanvasPlan(): ProjectData {
   return {
     id: `blank-${Date.now()}`,
-    title: '새 빈 도면 프로젝트',
+    title: '새 도면 프로젝트',
     areaSqm: 84,
-    width: 12.0,
-    depth: 9.6,
-    rooms: [
-      {
-        id: 'rm-main',
-        name: '거실 / 메인 공간',
-        kind: 'living',
-        polygon: [
-          { x: 1.0, y: 1.0 },
-          { x: 11.0, y: 1.0 },
-          { x: 11.0, y: 8.6 },
-          { x: 1.0, y: 8.6 },
-        ],
-        floorMaterialId: 'fl-cream-porcelain',
-        ceilingType: 'well_cove',
-        ceilingMaterialId: 'cl-matte-white',
-        coveLightOn: true,
-        coveKelvin: '3000K',
-      },
-    ],
-    walls: [
-      { id: 'w-1', x1: 1.0, y1: 1.0, x2: 11.0, y2: 1.0, thickness: 0.2, height: 2.45, isExterior: true, frontMaterialId: 'wl-diamang-stucco', backMaterialId: 'wl-diamang-stucco' },
-      { id: 'w-2', x1: 11.0, y1: 1.0, x2: 11.0, y2: 8.6, thickness: 0.2, height: 2.45, isExterior: true, frontMaterialId: 'wl-diamang-stucco', backMaterialId: 'wl-diamang-stucco' },
-      { id: 'w-3', x1: 11.0, y1: 8.6, x2: 1.0, y2: 8.6, thickness: 0.2, height: 2.45, isExterior: true, frontMaterialId: 'wl-diamang-stucco', backMaterialId: 'wl-diamang-stucco' },
-      { id: 'w-4', x1: 1.0, y1: 8.6, x2: 1.0, y2: 1.0, thickness: 0.2, height: 2.45, isExterior: true, frontMaterialId: 'wl-diamang-stucco', backMaterialId: 'wl-diamang-stucco' },
-    ],
-    openings: [
-      { id: 'op-1', wallId: 'w-3', kind: 'window_blind', offset: 0.5, width: 3.6, height: 2.0, sillHeight: 0.2, frameMaterialId: 'fm-walnut-wood', hasBlind: true },
-    ],
+    width: 14.0,
+    depth: 10.5,
+    underlayWidthM: 14.0,
+    underlayDepthM: 10.5,
+    rooms: [],
+    walls: [],
+    openings: [],
     objects: [],
   };
 }

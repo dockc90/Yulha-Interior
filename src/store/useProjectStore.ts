@@ -53,12 +53,17 @@ interface ProjectStore {
   setCameraPreset: (preset: 'iso' | 'living' | 'kitchen' | 'master' | 'first_person') => void;
   setUnderlayImage: (url: string | null) => void;
   setUnderlayOpacity: (op: number) => void;
+  setUnderlayAspectSize: (naturalW: number, naturalH: number) => void;
+  applyScaleCalibration: (factor: number) => void;
   notify: (msg: string) => void;
 
   // 2D & 3D Mutations
+  addRoom: (name: string, kind: RoomKind, polygon: { x: number; y: number }[]) => void;
+  deleteRoom: (roomId: string) => void;
   addWall: (x1: number, y1: number, x2: number, y2: number) => void;
   deleteWall: (wallId: string) => void;
   moveWallEndpoint: (wallId: string, end: 'start' | 'end', x: number, y: number) => void;
+  resizeWallLength: (wallId: string, newLengthMm: number) => void;
   addOpening: (wallId: string, kind: OpeningKind, offset: number) => void;
   deleteOpening: (id: string) => void;
   toggleBlind: (openingId: string) => void;
@@ -66,6 +71,8 @@ interface ProjectStore {
   addObject: (kind: ObjectKind, x: number, y: number, wallId?: string, offset?: number) => void;
   moveObject: (id: string, x: number, y: number) => void;
   rotateObject: (id: string, deltaRad?: number) => void;
+  duplicateSelectedObject: () => void;
+  deleteSelected: () => void;
   toggleObjectPower: (id: string) => void;
   setObjectVariant: (id: string, variant: string) => void;
   deleteObject: (id: string) => void;
@@ -109,7 +116,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   cameraPreset: 'iso',
 
   underlayImage: null,
-  underlayOpacity: 0.4,
+  underlayOpacity: 0.8,
   subscriptionTier: 'free',
   toast: null,
 
@@ -176,6 +183,125 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   setCameraPreset: (cameraPreset) => set({ cameraPreset }),
   setUnderlayImage: (underlayImage) => set({ underlayImage }),
   setUnderlayOpacity: (underlayOpacity) => set({ underlayOpacity }),
+
+  setUnderlayAspectSize: (naturalW, naturalH) => {
+    if (!naturalW || !naturalH) return;
+    const { project } = get();
+    const baseW = project.underlayWidthM || project.width || 14;
+    const nextD = Math.round(((baseW * naturalH) / naturalW) * 100) / 100;
+    const next = clone(project);
+    next.underlayWidthM = baseW;
+    next.underlayDepthM = nextD;
+    next.width = Math.max(next.width, baseW);
+    next.depth = Math.max(next.depth, nextD);
+    set({ project: next });
+  },
+
+  applyScaleCalibration: (factor) => {
+    if (!Number.isFinite(factor) || factor <= 0.05 || factor > 20) return;
+    const { project, past } = get();
+    const next = clone(project);
+    const curW = next.underlayWidthM || next.width || 14;
+    const curD = next.underlayDepthM || next.depth || 10.5;
+    next.underlayWidthM = Math.round(curW * factor * 100) / 100;
+    next.underlayDepthM = Math.round(curD * factor * 100) / 100;
+    next.width = Math.max(next.underlayWidthM, 8);
+    next.depth = Math.max(next.underlayDepthM, 6);
+    set({ project: next, past: [...past.slice(-24), project], future: [] });
+    get().notify(`실측 축척이 보정되었습니다 (밑그림 ${Math.round(next.underlayWidthM * 1000)} × ${Math.round(next.underlayDepthM * 1000)} mm).`);
+  },
+
+  addRoom: (name, kind, polygon) => {
+    if (polygon.length < 3) return;
+    const { project, past } = get();
+    const next = clone(project);
+    const id = `rm-${Date.now()}`;
+    const floorMat =
+      kind === 'bath' || kind === 'entrance' || kind === 'balcony'
+        ? 'fl-warm-concrete'
+        : kind === 'living' || kind === 'kitchen'
+        ? 'fl-cream-porcelain'
+        : 'fl-natural-oak';
+    next.rooms.push({
+      id,
+      name,
+      kind,
+      polygon,
+      floorMaterialId: floorMat,
+      ceilingType: kind === 'living' ? 'well_cove' : 'flat',
+      ceilingMaterialId: 'cl-matte-white',
+      coveLightOn: kind === 'living',
+      coveKelvin: '3000K',
+    });
+    set({
+      project: next,
+      past: [...past.slice(-24), project],
+      future: [],
+      selection: { kind: 'room', id },
+    });
+    get().notify(`'${name}' 공간이 추가되었습니다.`);
+  },
+
+  deleteRoom: (roomId) => {
+    const { project, past } = get();
+    const next = clone(project);
+    next.rooms = next.rooms.filter((r) => r.id !== roomId);
+    set({ project: next, past: [...past.slice(-24), project], future: [], selection: null });
+  },
+
+  resizeWallLength: (wallId, newLengthMm) => {
+    const targetM = Math.max(0.2, newLengthMm / 1000);
+    const { project, past } = get();
+    const next = clone(project);
+    const w = next.walls.find((item) => item.id === wallId);
+    if (!w) return;
+    const dx = w.x2 - w.x1;
+    const dy = w.y2 - w.y1;
+    const curLen = Math.hypot(dx, dy);
+    if (curLen < 0.01) return;
+    const scale = targetM / curLen;
+    w.x2 = Math.round((w.x1 + dx * scale) * 100) / 100;
+    w.y2 = Math.round((w.y1 + dy * scale) * 100) / 100;
+    set({ project: next, past: [...past.slice(-24), project], future: [] });
+  },
+
+  duplicateSelectedObject: () => {
+    const { selection, project, past } = get();
+    if (selection?.kind !== 'object') return;
+    const src = project.objects.find((o) => o.id === selection.id);
+    if (!src) return;
+    const next = clone(project);
+    const copy = clone(src);
+    copy.id = `obj-${Date.now()}`;
+    copy.x = Math.round((src.x + 0.4) * 10) / 10;
+    copy.y = Math.round((src.y + 0.4) * 10) / 10;
+    next.objects.push(copy);
+    set({
+      project: next,
+      past: [...past.slice(-24), project],
+      future: [],
+      selection: { kind: 'object', id: copy.id },
+    });
+    get().notify(`${src.name}이(가) 복제되었습니다.`);
+  },
+
+  deleteSelected: () => {
+    const { selection } = get();
+    if (!selection) return;
+    if (selection.kind === 'room') {
+      get().deleteRoom(selection.id);
+      get().notify('선택한 공간을 삭제했습니다.');
+    } else if (selection.kind === 'wall') {
+      get().deleteWall(selection.id);
+      get().notify('선택한 벽체를 삭제했습니다.');
+    } else if (selection.kind === 'opening') {
+      get().deleteOpening(selection.id);
+      get().notify('선택한 문/창문을 삭제했습니다.');
+    } else if (selection.kind === 'object') {
+      get().deleteObject(selection.id);
+      get().notify('선택한 요소를 삭제했습니다.');
+    }
+  },
 
   addWall: (x1, y1, x2, y2) => {
     if (Math.hypot(x2 - x1, y2 - y1) < 0.2) return;

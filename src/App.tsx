@@ -31,6 +31,8 @@ import {
   Square,
   Undo2,
   AppWindow,
+  LayoutGrid,
+  Trash2,
 } from 'lucide-react';
 import { ToolMode } from './types/studio';
 
@@ -44,6 +46,7 @@ export function App() {
     autoSync3D,
     hasPending3DChanges,
     toolMode,
+    selection,
     showDimensions,
     toast,
     openProject,
@@ -52,9 +55,12 @@ export function App() {
     setAutoSync3D,
     commit3DUpdate,
     setToolMode,
+    setSelection,
     setShowDimensions,
     setUnderlayImage,
     notify,
+    deleteSelected,
+    duplicateSelectedObject,
     undo,
     redo,
   } = useProjectStore();
@@ -102,19 +108,30 @@ export function App() {
         e.preventDefault();
         if (e.shiftKey) redo();
         else undo();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        redo();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        duplicateSelectedObject();
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        deleteSelected();
       } else if (e.key === 'Escape') {
         setToolMode('select');
+        setSelection(null);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [hasActiveProject, undo, redo, setToolMode]);
+  }, [hasActiveProject, undo, redo, deleteSelected, duplicateSelectedObject, setToolMode, setSelection]);
 
   const handleSavePro = () => setLibraryMode('save');
   const handleLoadPro = () => setLibraryMode('load');
 
   const tools: { id: ToolMode; label: string; icon: React.ReactNode }[] = [
     { id: 'select', label: '선택', icon: <MousePointer2 className="w-3.5 h-3.5" /> },
+    { id: 'add_room', label: '방 지정', icon: <LayoutGrid className="w-3.5 h-3.5" /> },
     { id: 'draw_wall', label: '벽 그리기', icon: <PenTool className="w-3.5 h-3.5" /> },
     { id: 'add_door', label: '문', icon: <DoorOpen className="w-3.5 h-3.5" /> },
     { id: 'add_window', label: '창문', icon: <AppWindow className="w-3.5 h-3.5" /> },
@@ -424,6 +441,33 @@ export function App() {
                         </button>
                       ))}
                       <div className="w-px h-4 bg-[#E9E9E7] mx-0.5" />
+                      <button
+                        onClick={undo}
+                        disabled={past.length === 0}
+                        className="px-2 py-1.5 rounded-lg text-[11px] font-semibold text-[#37352F] hover:bg-[#EFEFEE] disabled:opacity-30 flex items-center gap-1 whitespace-nowrap"
+                        title="실행 취소 (Ctrl+Z)"
+                      >
+                        <Undo2 className="w-3.5 h-3.5" />
+                        <span className="hidden 2xl:inline">실행취소</span>
+                      </button>
+                      <button
+                        onClick={redo}
+                        disabled={future.length === 0}
+                        className="px-2 py-1.5 rounded-lg text-[11px] font-semibold text-[#37352F] hover:bg-[#EFEFEE] disabled:opacity-30 flex items-center gap-1 whitespace-nowrap"
+                        title="재실행 (Ctrl+Y)"
+                      >
+                        <Redo2 className="w-3.5 h-3.5" />
+                        <span className="hidden 2xl:inline">재실행</span>
+                      </button>
+                      <button
+                        onClick={deleteSelected}
+                        disabled={!selection}
+                        className="px-2 py-1.5 rounded-lg text-[11px] font-semibold text-[#E03E3E] hover:bg-[#FBE4E4] disabled:opacity-30 flex items-center gap-1 whitespace-nowrap"
+                        title="선택 요소 삭제 (Delete)"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span className="hidden 2xl:inline">삭제</span>
+                      </button>
                       <button
                         onClick={() => setShowDimensions(!showDimensions)}
                         className={`px-2 py-1.5 rounded-lg text-[11px] font-semibold ${
