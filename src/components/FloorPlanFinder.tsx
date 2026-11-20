@@ -29,11 +29,10 @@ export const FloorPlanFinder: React.FC<Props> = ({ onApplyImage }) => {
       url: `https://hogangnono.com/search?q=${encodeURIComponent(complex)}`,
     },
     {
-      name: '직방',
-      desc: `아파트 지도 열기 (단지명 자동복사)`,
-      color: 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100',
-      url: `https://www.zigbang.com/home/apt`,
-      copyOnClick: true,
+      name: '분양 홈페이지 · 분양도면',
+      desc: `'${full} 분양도면' 공식 홈페이지 찾기`,
+      color: 'bg-sky-50 border-sky-200 text-sky-800 hover:bg-sky-100',
+      url: `https://search.naver.com/search.naver?query=${encodeURIComponent(`${full} 분양도면`)}`,
     },
     {
       name: '네이버 이미지',
