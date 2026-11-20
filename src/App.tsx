@@ -6,6 +6,7 @@ import { Studio3DViewport } from './components/Studio3DViewport';
 import { InspectorPanel } from './components/InspectorPanel';
 import { UnderlayModal } from './components/UnderlayModal';
 import { EstimateModal } from './components/EstimateModal';
+import { ProjectLibraryModal } from './components/ProjectLibraryModal';
 import {
   Box,
   Calculator,
@@ -54,12 +55,12 @@ export function App() {
     setShowDimensions,
     undo,
     redo,
-    notify,
   } = useProjectStore();
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [underlayOpen, setUnderlayOpen] = useState(false);
   const [estimateOpen, setEstimateOpen] = useState(false);
+  const [libraryMode, setLibraryMode] = useState<'save' | 'load' | null>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -78,24 +79,8 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [hasActiveProject, undo, redo, setToolMode]);
 
-  const handleSavePro = () => {
-    localStorage.setItem('yulha_v2_saved_project', JSON.stringify(project));
-    notify('프로젝트가 저장되었습니다. (추후 월 구독 Pro 클라우드 동기화 연동 예정)');
-  };
-
-  const handleLoadPro = () => {
-    const raw = localStorage.getItem('yulha_v2_saved_project');
-    if (!raw) {
-      notify('저장된 프로젝트가 없습니다.');
-      return;
-    }
-    try {
-      openProject(JSON.parse(raw));
-      notify('저장된 프로젝트를 불러왔습니다.');
-    } catch {
-      notify('저장 데이터를 불러오지 못했습니다.');
-    }
-  };
+  const handleSavePro = () => setLibraryMode('save');
+  const handleLoadPro = () => setLibraryMode('load');
 
   const tools: { id: ToolMode; label: string; icon: React.ReactNode }[] = [
     { id: 'select', label: '선택', icon: <MousePointer2 className="w-3.5 h-3.5" /> },
@@ -435,6 +420,7 @@ export function App() {
 
       <UnderlayModal open={underlayOpen} onClose={() => setUnderlayOpen(false)} />
       <EstimateModal open={estimateOpen} onClose={() => setEstimateOpen(false)} />
+      <ProjectLibraryModal mode={libraryMode} onClose={() => setLibraryMode(null)} />
     </div>
   );
 }
