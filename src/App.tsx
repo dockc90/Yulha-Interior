@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useProjectStore } from './store/useProjectStore';
-import { createBlankCanvasPlan, createShowcase34Plan } from './data/starterTemplates';
+import { createBlankCanvasPlan } from './data/starterTemplates';
 import { Canvas2DEditor } from './components/Canvas2DEditor';
 import { Studio3DViewport } from './components/Studio3DViewport';
 import { InspectorPanel } from './components/InspectorPanel';
 import { UnderlayModal } from './components/UnderlayModal';
 import { EstimateModal } from './components/EstimateModal';
 import { ProjectLibraryModal } from './components/ProjectLibraryModal';
+import { FloorPlanFinder } from './components/FloorPlanFinder';
 import {
   Box,
   Calculator,
@@ -27,7 +28,6 @@ import {
   Ruler,
   Save,
   Sofa,
-  Sparkles,
   Square,
   Undo2,
   AppWindow,
@@ -53,6 +53,8 @@ export function App() {
     commit3DUpdate,
     setToolMode,
     setShowDimensions,
+    setUnderlayImage,
+    notify,
     undo,
     redo,
   } = useProjectStore();
@@ -331,46 +333,55 @@ export function App() {
                   </p>
                 </div>
 
-                <div className="p-3.5 rounded-lg bg-[#F7F7F5] border border-[#E9E9E7] flex items-start gap-2.5 text-xs text-[#5F5E5B]">
-                  <Sparkles className="w-4 h-4 text-[#0F7B6C] shrink-0 mt-0.5" />
-                  <span>
-                    모든 설계 및 3D 자재 시뮬레이션은 무료로 제공되며, 프로젝트 저장/불러오기는 추후 월 구독(Pro) 기능으로 연동될 예정입니다.
-                  </span>
+                <div className="p-5 rounded-xl border border-[#E9E9E7] bg-white shadow-2xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#37352F]">
+                      평면도 검색 · 캡처 붙여넣기로 바로 시작
+                    </span>
+                    <button
+                      onClick={() => openProject(createBlankCanvasPlan())}
+                      className="text-[11px] font-semibold text-[#0F7B6C] hover:underline"
+                    >
+                      밑그림 없이 빈 도면 열기 →
+                    </button>
+                  </div>
+                  <FloorPlanFinder
+                    onApplyImage={(dataUrl) => {
+                      openProject(createBlankCanvasPlan());
+                      setUnderlayImage(dataUrl);
+                      notify('도면을 2D 밑그림으로 적용해 스튜디오를 열었습니다.');
+                    }}
+                  />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <button
-                    onClick={() => openProject(createShowcase34Plan())}
-                    className="p-5 rounded-xl border border-[#E9E9E7] hover:border-[#0F7B6C] bg-white hover:bg-[#FBFBFA] text-left transition space-y-2 shadow-2xs"
-                  >
-                    <div className="inline-block px-2 py-0.5 rounded bg-[#DDEDEA] text-[#0F7B6C] text-[10px] font-bold">
-                      추천 시작 · 풀옵션 세팅
+                {/* Usage Guide */}
+                <div className="space-y-2.5">
+                  <div className="text-xs font-bold uppercase tracking-wider text-[#9B9A97]">
+                    사용 가이드
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    <div className="p-3.5 rounded-lg bg-[#F7F7F5] border border-[#E9E9E7] space-y-1">
+                      <div className="text-[11px] font-bold text-[#0F7B6C]">STEP 1. 도면 불러오기</div>
+                      <div className="text-xs font-semibold text-[#37352F]">검색 후 캡처 붙여넣기</div>
+                      <p className="text-[11px] text-[#787774] leading-relaxed">
+                        위에서 단지·타입을 입력해 네이버부동산·호갱노노·직방에서 도면을 찾고, 캡처(Win+Shift+S) 후 <b>Ctrl+V</b>로 붙여넣으세요.
+                      </p>
                     </div>
-                    <div className="text-sm font-bold text-[#37352F]">
-                      34평 모델하우스 스튜디오 열기
+                    <div className="p-3.5 rounded-lg bg-[#F7F7F5] border border-[#E9E9E7] space-y-1">
+                      <div className="text-[11px] font-bold text-[#2383E2]">STEP 2. 2D 도면 편집</div>
+                      <div className="text-xs font-semibold text-[#37352F]">밑그림 따라 구조·설비 배치</div>
+                      <p className="text-[11px] text-[#787774] leading-relaxed">
+                        2D 캔버스 밑그림 위에 벽·문·창문·콘센트·조명·냉장고장·아일랜드를 배치하고 <b>실시간/수동 3D 업데이트</b>로 반영하세요.
+                      </p>
                     </div>
-                    <p className="text-xs text-[#787774] leading-relaxed">
-                      우물천장·실링팬·우드 블라인드·반매립 TV·콘센트·키친핏 냉장고장·홈바 키큰장·3구 인덕션이 세팅된 상태에서 바로 자재를 바꿔보세요.
-                    </p>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      openProject(createBlankCanvasPlan());
-                      setUnderlayOpen(true);
-                    }}
-                    className="p-5 rounded-xl border border-[#E9E9E7] hover:border-[#2383E2] bg-white hover:bg-[#FBFBFA] text-left transition space-y-2 shadow-2xs"
-                  >
-                    <div className="inline-block px-2 py-0.5 rounded bg-[#EBF5FF] text-[#2383E2] text-[10px] font-bold">
-                      우리 집 도면 그리기
+                    <div className="p-3.5 rounded-lg bg-[#F7F7F5] border border-[#E9E9E7] space-y-1">
+                      <div className="text-[11px] font-bold text-[#D9730D]">STEP 3. 3D 자재 시뮬레이션</div>
+                      <div className="text-xs font-semibold text-[#37352F]">클릭해 실사 자재 적용</div>
+                      <p className="text-[11px] text-[#787774] leading-relaxed">
+                        3D 공간에서 마루·벽지·필름지·콘센트·인덕션·실링팬을 클릭해 자재를 바꾸고 실시간 견적서를 확인하세요.
+                      </p>
                     </div>
-                    <div className="text-sm font-bold text-[#37352F]">
-                      빈 도면 + 밑그림 검색으로 시작
-                    </div>
-                    <p className="text-xs text-[#787774] leading-relaxed">
-                      아파트 평면도 이미지를 검색·업로드해 2D 바닥에 깔아두고, 실제 구조에 맞춰 벽·문·콘센트·가전을 배치하세요.
-                    </p>
-                  </button>
+                  </div>
                 </div>
 
                 <button
