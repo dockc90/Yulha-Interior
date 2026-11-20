@@ -318,19 +318,13 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   },
 
   resizeWallLength: (wallId, newLengthMm) => {
-    const targetM = Math.max(0.2, newLengthMm / 1000);
     const { project, past } = get();
     const next = clone(project);
     const w = next.walls.find((item) => item.id === wallId);
     if (!w) return;
-    const dx = w.x2 - w.x1;
-    const dy = w.y2 - w.y1;
-    const curLen = Math.hypot(dx, dy);
-    if (curLen < 0.01) return;
-    const scale = targetM / curLen;
-    w.x2 = Math.round((w.x1 + dx * scale) * 100) / 100;
-    w.y2 = Math.round((w.y1 + dy * scale) * 100) / 100;
+    w.displayLengthMm = Math.round(newLengthMm);
     set({ project: next, past: [...past.slice(-24), project], future: [] });
+    get().notify(`벽 표기 치수를 ${w.displayLengthMm}mm로 수정했습니다. (벽 도형 크기 유지)`);
   },
 
   duplicateSelectedObject: () => {

@@ -144,7 +144,7 @@ export const InspectorPanel: React.FC = () => {
               <div>
                 <div className="font-bold text-[#37352F]">벽체 ({selWall.isExterior ? '외벽' : '내벽'})</div>
                 <div className="text-[11px] text-[#787774]">
-                  길이 {Math.round(Math.hypot(selWall.x2 - selWall.x1, selWall.y2 - selWall.y1) * 1000)}mm · {getMaterial(selWall.frontMaterialId).name}
+                  표기 치수 {selWall.displayLengthMm ?? Math.round(Math.hypot(selWall.x2 - selWall.x1, selWall.y2 - selWall.y1) * 1000)}mm · {getMaterial(selWall.frontMaterialId).name}
                 </div>
               </div>
               <button

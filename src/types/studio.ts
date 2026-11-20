@@ -66,6 +66,7 @@ export interface WallSegment {
   isExterior: boolean;
   frontMaterialId: string;
   backMaterialId: string;
+  displayLengthMm?: number;
 }
 
 export type OpeningKind = 'door' | 'sliding_glass_door' | 'window_blind' | 'entrance_door';

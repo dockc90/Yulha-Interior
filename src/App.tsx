@@ -8,6 +8,7 @@ import { UnderlayModal } from './components/UnderlayModal';
 import { EstimateModal } from './components/EstimateModal';
 import { ProjectLibraryModal } from './components/ProjectLibraryModal';
 import { FloorPlanFinder } from './components/FloorPlanFinder';
+import { ImagePrepModal } from './components/ImagePrepModal';
 import {
   Box,
   Calculator,
@@ -67,6 +68,7 @@ export function App() {
   const [underlayOpen, setUnderlayOpen] = useState(false);
   const [estimateOpen, setEstimateOpen] = useState(false);
   const [libraryMode, setLibraryMode] = useState<'save' | 'load' | null>(null);
+  const [prepImageSrc, setPrepImageSrc] = useState<string | null>(null);
 
   useEffect(() => {
     const onPasteGlobal = (e: ClipboardEvent) => {
@@ -79,12 +81,7 @@ export function App() {
           const reader = new FileReader();
           reader.onload = () => {
             if (typeof reader.result === 'string') {
-              const st = useProjectStore.getState();
-              if (!st.hasActiveProject) {
-                st.openProject(createBlankCanvasPlan());
-              }
-              st.setUnderlayImage(reader.result);
-              st.convertUnderlayTo2D(reader.result);
+              setPrepImageSrc(reader.result);
               setUnderlayOpen(false);
             }
           };
@@ -361,10 +358,7 @@ export function App() {
                     </button>
                   </div>
                   <FloorPlanFinder
-                    onApplyImage={(dataUrl) => {
-                      openProject(createBlankCanvasPlan());
-                      useProjectStore.getState().convertUnderlayTo2D(dataUrl);
-                    }}
+                    onApplyImage={(dataUrl) => setPrepImageSrc(dataUrl)}
                   />
                 </div>
 
@@ -499,7 +493,28 @@ export function App() {
         </div>
       </div>
 
-      <UnderlayModal open={underlayOpen} onClose={() => setUnderlayOpen(false)} />
+      <UnderlayModal
+        open={underlayOpen}
+        onClose={() => setUnderlayOpen(false)}
+        onSelectForPrep={(url) => setPrepImageSrc(url)}
+      />
+      <ImagePrepModal
+        imageSrc={prepImageSrc}
+        onClose={() => setPrepImageSrc(null)}
+        onConfirm={(editedUrl, autoVectorize) => {
+          const st = useProjectStore.getState();
+          if (!st.hasActiveProject) {
+            st.openProject(createBlankCanvasPlan());
+          }
+          if (autoVectorize) {
+            st.convertUnderlayTo2D(editedUrl);
+          } else {
+            st.setUnderlayImage(editedUrl);
+            st.notify('편집된 도면 이미지를 밑그림으로 적용했습니다.');
+          }
+          setPrepImageSrc(null);
+        }}
+      />
       <EstimateModal open={estimateOpen} onClose={() => setEstimateOpen(false)} />
       <ProjectLibraryModal mode={libraryMode} onClose={() => setLibraryMode(null)} />
     </div>

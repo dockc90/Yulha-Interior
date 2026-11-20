@@ -6,10 +6,11 @@ import { FloorPlanFinder } from './FloorPlanFinder';
 interface Props {
   open: boolean;
   onClose: () => void;
+  onSelectForPrep: (dataUrl: string) => void;
 }
 
-export const UnderlayModal: React.FC<Props> = ({ open, onClose }) => {
-  const { setUnderlayImage, underlayImage, underlayOpacity, setUnderlayOpacity, convertUnderlayTo2D, notify } =
+export const UnderlayModal: React.FC<Props> = ({ open, onClose, onSelectForPrep }) => {
+  const { setUnderlayImage, underlayImage, underlayOpacity, setUnderlayOpacity, notify } =
     useProjectStore();
 
   if (!open) return null;
@@ -35,7 +36,7 @@ export const UnderlayModal: React.FC<Props> = ({ open, onClose }) => {
         <div className="p-5 space-y-4 overflow-y-auto">
           <FloorPlanFinder
             onApplyImage={(dataUrl) => {
-              convertUnderlayTo2D(dataUrl);
+              onSelectForPrep(dataUrl);
               onClose();
             }}
           />

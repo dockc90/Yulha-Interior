@@ -255,33 +255,70 @@ export const Canvas2DEditor: React.FC = () => {
       }
     });
 
-    // Walls
+    // Walls (Architectural AutoCAD Double-line Style)
     project.walls.forEach((w) => {
       const isSel = selection?.kind === 'wall' && selection.id === w.id;
-      ctx.strokeStyle = isSel ? '#2383E2' : '#2F2E2B';
-      ctx.lineWidth = Math.max(4, w.thickness * PX_PER_M);
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(w.x1 * PX_PER_M, w.y1 * PX_PER_M);
-      ctx.lineTo(w.x2 * PX_PER_M, w.y2 * PX_PER_M);
-      ctx.stroke();
+      const dx = (w.x2 - w.x1) * PX_PER_M;
+      const dy = (w.y2 - w.y1) * PX_PER_M;
+      const lenPx = Math.hypot(dx, dy);
+      if (lenPx < 1) return;
+      const angle = Math.atan2(dy, dx);
+      const thickPx = Math.max(6, w.thickness * PX_PER_M);
 
-      if (showDimensions) {
-        const lenMm = Math.round(Math.hypot(w.x2 - w.x1, w.y2 - w.y1) * 1000);
-        const mx = ((w.x1 + w.x2) / 2) * PX_PER_M;
-        const my = ((w.y1 + w.y2) / 2) * PX_PER_M - 8 / zoom;
-        ctx.fillStyle = isSel ? '#2383E2' : '#57534E';
-        ctx.font = `700 ${10 / Math.sqrt(zoom)}px monospace`;
+      ctx.save();
+      ctx.translate(w.x1 * PX_PER_M, w.y1 * PX_PER_M);
+      ctx.rotate(angle);
+
+      // CAD wall body fill + crisp outline
+      ctx.fillStyle = isSel ? '#DBEAFE' : w.isExterior ? '#334155' : '#475569';
+      ctx.strokeStyle = isSel ? '#2563EB' : '#0F172A';
+      ctx.lineWidth = 1.3 / zoom;
+      ctx.fillRect(0, -thickPx / 2, lenPx, thickPx);
+      ctx.strokeRect(0, -thickPx / 2, lenPx, thickPx);
+
+      // Architectural CAD Dimension Line (offset above wall)
+      if (showDimensions && lenPx > 18) {
+        const lenMm = w.displayLengthMm ?? Math.round(Math.hypot(w.x2 - w.x1, w.y2 - w.y1) * 1000);
+        const dimY = -thickPx / 2 - 14 / zoom;
+        const tick = 4 / zoom;
+
+        ctx.strokeStyle = isSel ? '#2563EB' : '#64748B';
+        ctx.lineWidth = 0.9 / zoom;
+        // Extension lines
+        ctx.beginPath();
+        ctx.moveTo(0, -thickPx / 2 - 2 / zoom);
+        ctx.lineTo(0, dimY - 3 / zoom);
+        ctx.moveTo(lenPx, -thickPx / 2 - 2 / zoom);
+        ctx.lineTo(lenPx, dimY - 3 / zoom);
+        // Main dimension line
+        ctx.moveTo(0, dimY);
+        ctx.lineTo(lenPx, dimY);
+        // Architectural 45-degree ticks
+        ctx.moveTo(-tick, dimY + tick);
+        ctx.lineTo(tick, dimY - tick);
+        ctx.moveTo(lenPx - tick, dimY + tick);
+        ctx.lineTo(lenPx + tick, dimY - tick);
+        ctx.stroke();
+
+        // Dimension text pill
+        const label = `${lenMm}`;
+        ctx.font = `600 ${9.5 / Math.sqrt(zoom)}px monospace`;
+        const tw = ctx.measureText(label).width + 6 / zoom;
+        ctx.fillStyle = 'rgba(255,255,255,0.92)';
+        ctx.fillRect(lenPx / 2 - tw / 2, dimY - 6 / zoom, tw, 12 / zoom);
+        ctx.fillStyle = isSel ? '#2563EB' : '#1E293B';
         ctx.textAlign = 'center';
-        ctx.fillText(`${lenMm}mm`, mx, my);
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, lenPx / 2, dimY);
       }
+      ctx.restore();
 
       if (isSel) {
         [
           [w.x1, w.y1],
           [w.x2, w.y2],
         ].forEach(([ex, ey]) => {
-          ctx.fillStyle = '#2383E2';
+          ctx.fillStyle = '#2563EB';
           ctx.beginPath();
           ctx.arc(ex * PX_PER_M, ey * PX_PER_M, 5 / zoom, 0, Math.PI * 2);
           ctx.fill();
@@ -289,7 +326,7 @@ export const Canvas2DEditor: React.FC = () => {
       }
     });
 
-    // Openings
+    // Openings (CAD Swing Arc / Sliding / Triple Window Symbols)
     project.openings.forEach((op) => {
       const w = project.walls.find((wl) => wl.id === op.wallId);
       if (!w) return;
@@ -297,20 +334,52 @@ export const Canvas2DEditor: React.FC = () => {
       const ox = (w.x1 + (w.x2 - w.x1) * op.offset) * PX_PER_M;
       const oy = (w.y1 + (w.y2 - w.y1) * op.offset) * PX_PER_M;
       const angle = Math.atan2(w.y2 - w.y1, w.x2 - w.x1);
+      const thickPx = Math.max(6, w.thickness * PX_PER_M);
+      const opW = op.width * PX_PER_M;
+      const halfW = opW / 2;
+
       ctx.save();
       ctx.translate(ox, oy);
       ctx.rotate(angle);
-      ctx.fillStyle =
-        op.kind === 'window_blind'
-          ? '#DBEAFE'
-          : op.kind === 'sliding_glass_door'
-          ? '#FEF3C7'
-          : '#DCFCE7';
-      ctx.strokeStyle = isSel ? '#2383E2' : op.kind === 'window_blind' ? '#2563EB' : '#059669';
-      ctx.lineWidth = 2 / zoom;
-      const halfW = (op.width * PX_PER_M) / 2;
-      ctx.fillRect(-halfW, -5, halfW * 2, 10);
-      ctx.strokeRect(-halfW, -5, halfW * 2, 10);
+
+      // Clear wall gap cleanly
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(-halfW, -thickPx / 2 - 1, opW, thickPx + 2);
+
+      if (op.kind === 'window_blind') {
+        ctx.strokeStyle = isSel ? '#2563EB' : '#0284C7';
+        ctx.lineWidth = 1.2 / zoom;
+        ctx.strokeRect(-halfW, -thickPx / 2, opW, thickPx);
+        // Triple CAD glass lines
+        ctx.beginPath();
+        ctx.moveTo(-halfW, 0);
+        ctx.lineTo(halfW, 0);
+        ctx.moveTo(-halfW, -thickPx / 4);
+        ctx.lineTo(halfW, -thickPx / 4);
+        ctx.moveTo(-halfW, thickPx / 4);
+        ctx.lineTo(halfW, thickPx / 4);
+        ctx.stroke();
+      } else if (op.kind === 'sliding_glass_door') {
+        ctx.strokeStyle = isSel ? '#2563EB' : '#D97706';
+        ctx.lineWidth = 1.6 / zoom;
+        ctx.strokeRect(-halfW, -thickPx / 4, opW * 0.55, thickPx / 4);
+        ctx.strokeRect(-halfW + opW * 0.45, 0, opW * 0.55, thickPx / 4);
+      } else {
+        // Architectural Door Leaf + 90-degree Swing Arc
+        ctx.strokeStyle = isSel ? '#2563EB' : '#0F7B6C';
+        ctx.lineWidth = 1.8 / zoom;
+        ctx.beginPath();
+        ctx.moveTo(-halfW, 0);
+        ctx.lineTo(-halfW, -opW);
+        ctx.stroke();
+
+        ctx.setLineDash([4 / zoom, 3 / zoom]);
+        ctx.lineWidth = 1 / zoom;
+        ctx.beginPath();
+        ctx.arc(-halfW, 0, opW, -Math.PI / 2, 0);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
       ctx.restore();
     });
 

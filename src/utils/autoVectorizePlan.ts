@@ -280,7 +280,7 @@ export async function autoVectorizeFloorPlan(
   }
   const hSegs: Seg[] = [];
   const vSegs: Seg[] = [];
-  const minWallPx = Math.max(10, Math.round(Math.min(gw, gh) * 0.05));
+  const minWallPx = Math.max(14, Math.round(Math.min(gw, gh) * 0.065));
 
   for (let y = 0; y < gh; y++) {
     let runStart = -1;
@@ -367,18 +367,32 @@ export async function autoVectorizeFloorPlan(
 
   const snapM = (v: number) => Math.round(v * 20) / 20; // 50mm snap
 
-  const walls: WallSegment[] = mergedWalls.map((s, idx) => ({
-    id: `vw-${Date.now()}-${idx}`,
-    x1: snapM(s.x1 * mPerGx),
-    y1: snapM(s.y1 * mPerGy),
-    x2: snapM(s.x2 * mPerGx),
-    y2: snapM(s.y2 * mPerGy),
-    thickness: 0.16,
-    height: 2.45,
-    isExterior: false,
-    frontMaterialId: 'wl-diamang-stucco',
-    backMaterialId: 'wl-diamang-stucco',
-  }));
+  const walls: WallSegment[] = mergedWalls
+    .map((s, idx) => ({
+      id: `vw-${Date.now()}-${idx}`,
+      x1: snapM(s.x1 * mPerGx),
+      y1: snapM(s.y1 * mPerGy),
+      x2: snapM(s.x2 * mPerGx),
+      y2: snapM(s.y2 * mPerGy),
+      thickness: 0.16,
+      height: 2.45,
+      isExterior: false,
+      frontMaterialId: 'wl-diamang-stucco',
+      backMaterialId: 'wl-diamang-stucco',
+    }))
+    .filter((w) => Math.hypot(w.x2 - w.x1, w.y2 - w.y1) >= 0.45);
+
+  // Snap nearby wall endpoints so L/T CAD corners meet cleanly
+  for (let i = 0; i < walls.length; i++) {
+    for (let j = i + 1; j < walls.length; j++) {
+      const a = walls[i];
+      const b = walls[j];
+      if (Math.hypot(a.x1 - b.x1, a.y1 - b.y1) < 0.28) { b.x1 = a.x1; b.y1 = a.y1; }
+      if (Math.hypot(a.x1 - b.x2, a.y1 - b.y2) < 0.28) { b.x2 = a.x1; b.y2 = a.y1; }
+      if (Math.hypot(a.x2 - b.x1, a.y2 - b.y1) < 0.28) { b.x1 = a.x2; b.y1 = a.y2; }
+      if (Math.hypot(a.x2 - b.x2, a.y2 - b.y2) < 0.28) { b.x2 = a.x2; b.y2 = a.y2; }
+    }
+  }
 
   // Sort regions largest first so living room gets detected accurately
   regions.sort((a, b) => b.pxCount - a.pxCount);
