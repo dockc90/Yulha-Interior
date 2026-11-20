@@ -9,7 +9,7 @@ interface Props {
 }
 
 export const UnderlayModal: React.FC<Props> = ({ open, onClose }) => {
-  const { setUnderlayImage, underlayImage, underlayOpacity, setUnderlayOpacity, notify } =
+  const { setUnderlayImage, underlayImage, underlayOpacity, setUnderlayOpacity, convertUnderlayTo2D, notify } =
     useProjectStore();
 
   if (!open) return null;
@@ -35,8 +35,7 @@ export const UnderlayModal: React.FC<Props> = ({ open, onClose }) => {
         <div className="p-5 space-y-4 overflow-y-auto">
           <FloorPlanFinder
             onApplyImage={(dataUrl) => {
-              setUnderlayImage(dataUrl);
-              notify('도면 이미지를 2D 밑그림으로 적용했습니다.');
+              convertUnderlayTo2D(dataUrl);
               onClose();
             }}
           />

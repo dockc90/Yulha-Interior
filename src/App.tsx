@@ -57,8 +57,6 @@ export function App() {
     setToolMode,
     setSelection,
     setShowDimensions,
-    setUnderlayImage,
-    notify,
     deleteSelected,
     duplicateSelectedObject,
     undo,
@@ -86,7 +84,7 @@ export function App() {
                 st.openProject(createBlankCanvasPlan());
               }
               st.setUnderlayImage(reader.result);
-              st.notify('붙여넣은 도면을 2D 밑그림으로 적용했습니다.');
+              st.convertUnderlayTo2D(reader.result);
               setUnderlayOpen(false);
             }
           };
@@ -365,8 +363,7 @@ export function App() {
                   <FloorPlanFinder
                     onApplyImage={(dataUrl) => {
                       openProject(createBlankCanvasPlan());
-                      setUnderlayImage(dataUrl);
-                      notify('도면을 2D 밑그림으로 적용해 스튜디오를 열었습니다.');
+                      useProjectStore.getState().convertUnderlayTo2D(dataUrl);
                     }}
                   />
                 </div>

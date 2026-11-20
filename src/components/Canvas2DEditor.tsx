@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useProjectStore } from '../store/useProjectStore';
 import { getMaterial } from '../data/catalog';
 import { ObjectKind, RoomKind } from '../types/studio';
-import { Ruler } from 'lucide-react';
+import { Ruler, Scissors, Sparkles } from 'lucide-react';
 
 const PX_PER_M = 60;
 
@@ -81,6 +81,7 @@ export const Canvas2DEditor: React.FC = () => {
     setUnderlayOpacity,
     setUnderlayAspectSize,
     applyScaleCalibration,
+    convertUnderlayTo2D,
     addRoom,
     addWall,
     moveWallEndpoint,
@@ -105,6 +106,10 @@ export const Canvas2DEditor: React.FC = () => {
   const [calStart, setCalStart] = useState<{ x: number; y: number } | null>(null);
   const [calEnd, setCalEnd] = useState<{ x: number; y: number } | null>(null);
   const [calMmInput, setCalMmInput] = useState('4500');
+
+  // Crop-to-vectorize region state
+  const [cropSelectMode, setCropSelectMode] = useState(false);
+  const [cropStart, setCropStart] = useState<{ x: number; y: number } | null>(null);
 
   const dragRef = useRef<
     | { kind: 'pan'; sx: number; sy: number; ox: number; oy: number }
@@ -396,6 +401,20 @@ export const Canvas2DEditor: React.FC = () => {
       }
     }
 
+    if (cropSelectMode && cropStart && hoverPt) {
+      const rx = Math.min(cropStart.x, hoverPt.x) * PX_PER_M;
+      const ry = Math.min(cropStart.y, hoverPt.y) * PX_PER_M;
+      const rw = Math.abs(hoverPt.x - cropStart.x) * PX_PER_M;
+      const rd = Math.abs(hoverPt.y - cropStart.y) * PX_PER_M;
+      ctx.fillStyle = 'rgba(217, 115, 13, 0.14)';
+      ctx.strokeStyle = '#D9730D';
+      ctx.lineWidth = 2.5 / zoom;
+      ctx.setLineDash([6 / zoom, 4 / zoom]);
+      ctx.fillRect(rx, ry, rw, rd);
+      ctx.strokeRect(rx, ry, rw, rd);
+      ctx.setLineDash([]);
+    }
+
     ctx.restore();
   }, [
     project,
@@ -412,6 +431,8 @@ export const Canvas2DEditor: React.FC = () => {
     roomStart,
     calStart,
     calEnd,
+    cropSelectMode,
+    cropStart,
     hoverPt,
   ]);
 
@@ -420,6 +441,11 @@ export const Canvas2DEditor: React.FC = () => {
 
     if (e.button === 1 || e.button === 2) {
       dragRef.current = { kind: 'pan', sx: e.clientX, sy: e.clientY, ox: pan.x, oy: pan.y };
+      return;
+    }
+
+    if (cropSelectMode) {
+      setCropStart({ x: pt.rawX, y: pt.rawY });
       return;
     }
 
@@ -540,6 +566,18 @@ export const Canvas2DEditor: React.FC = () => {
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (cropSelectMode && cropStart) {
+      const pt = toWorld(e.clientX, e.clientY);
+      const x1 = Math.max(0, Math.min(cropStart.x, pt.rawX) / underlayW);
+      const y1 = Math.max(0, Math.min(cropStart.y, pt.rawY) / underlayD);
+      const x2 = Math.min(1, Math.max(cropStart.x, pt.rawX) / underlayW);
+      const y2 = Math.min(1, Math.max(cropStart.y, pt.rawY) / underlayD);
+      if (x2 - x1 > 0.05 && y2 - y1 > 0.05) {
+        convertUnderlayTo2D(undefined, { x: x1, y: y1, w: x2 - x1, h: y2 - y1 });
+      }
+      setCropStart(null);
+      setCropSelectMode(false);
+    }
     if (toolMode === 'add_room' && roomStart) {
       const pt = toWorld(e.clientX, e.clientY);
       const x1 = Math.min(roomStart.x, pt.x);
@@ -593,7 +631,7 @@ export const Canvas2DEditor: React.FC = () => {
         </div>
 
         {underlayImage && (
-          <div className="pointer-events-auto flex items-center gap-2 bg-white/95 backdrop-blur-sm border border-[#E9E9E7] shadow-xs px-2.5 py-1 rounded-lg text-[11px]">
+          <div className="pointer-events-auto flex flex-wrap items-center gap-1.5 bg-white/95 backdrop-blur-sm border border-[#E9E9E7] shadow-xs px-2.5 py-1 rounded-lg text-[11px]">
             <span className="text-[#787774] font-medium">밑그림</span>
             <input
               type="range"
@@ -601,12 +639,36 @@ export const Canvas2DEditor: React.FC = () => {
               max={100}
               value={Math.round(underlayOpacity * 100)}
               onChange={(e) => setUnderlayOpacity(Number(e.target.value) / 100)}
-              className="w-16 accent-[#0F7B6C]"
+              className="w-14 accent-[#0F7B6C]"
             />
+            <button
+              onClick={() => convertUnderlayTo2D()}
+              className="px-2 py-1 rounded bg-[#0F7B6C] hover:bg-[#0c6357] text-white font-semibold flex items-center gap-1"
+              title="현재 밑그림 전체를 2D 벽·방·창문으로 자동 변환"
+            >
+              <Sparkles className="w-3 h-3" />
+              <span>자동 변환</span>
+            </button>
+            <button
+              onClick={() => {
+                setCropStart(null);
+                setCropSelectMode((v) => !v);
+              }}
+              className={`px-2 py-1 rounded font-semibold flex items-center gap-1 transition ${
+                cropSelectMode
+                  ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                  : 'bg-[#F7F7F5] hover:bg-[#EFEFED] text-[#37352F]'
+              }`}
+              title="이미지에 여러 도면이 있을 때 원하는 도면 영역만 드래그해 잘라서 2D로 변환"
+            >
+              <Scissors className="w-3 h-3" />
+              <span>{cropSelectMode ? '드래그로 영역 선택 중' : '영역 잘라 변환'}</span>
+            </button>
             <button
               onClick={() => {
                 setCalStart(null);
                 setCalEnd(null);
+                setCropSelectMode(false);
                 setToolMode(toolMode === 'calibrate' ? 'select' : 'calibrate');
               }}
               className={`px-2 py-1 rounded font-semibold flex items-center gap-1 transition ${
@@ -617,7 +679,7 @@ export const Canvas2DEditor: React.FC = () => {
               title="도면 위 실제 치수 두 점을 찍어 밑그림 실측 스케일 맞추기"
             >
               <Ruler className="w-3 h-3" />
-              <span>실측 축척 맞추기</span>
+              <span>실측 축척</span>
             </button>
           </div>
         )}
@@ -709,7 +771,9 @@ export const Canvas2DEditor: React.FC = () => {
           e.preventDefault();
           setZoom((z) => Math.max(0.4, Math.min(2.6, z * (e.deltaY < 0 ? 1.08 : 0.92))));
         }}
-        className={`w-full h-full ${toolMode === 'select' ? 'cursor-default' : 'cursor-crosshair'}`}
+        className={`w-full h-full ${
+          cropSelectMode || toolMode !== 'select' ? 'cursor-crosshair' : 'cursor-default'
+        }`}
       />
     </div>
   );

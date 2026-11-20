@@ -11,6 +11,7 @@ import {
   ToolMode,
 } from '../types/studio';
 import { createShowcase34Plan } from '../data/starterTemplates';
+import { autoVectorizeFloorPlan } from '../utils/autoVectorizePlan';
 
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
 
@@ -55,6 +56,10 @@ interface ProjectStore {
   setUnderlayOpacity: (op: number) => void;
   setUnderlayAspectSize: (naturalW: number, naturalH: number) => void;
   applyScaleCalibration: (factor: number) => void;
+  convertUnderlayTo2D: (
+    imageSrc?: string,
+    cropNorm?: { x: number; y: number; w: number; h: number }
+  ) => Promise<void>;
   notify: (msg: string) => void;
 
   // 2D & 3D Mutations
@@ -209,6 +214,69 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     next.depth = Math.max(next.underlayDepthM, 6);
     set({ project: next, past: [...past.slice(-24), project], future: [] });
     get().notify(`실측 축척이 보정되었습니다 (밑그림 ${Math.round(next.underlayWidthM * 1000)} × ${Math.round(next.underlayDepthM * 1000)} mm).`);
+  },
+
+  convertUnderlayTo2D: async (imageSrc, cropNorm) => {
+    const src = imageSrc || get().underlayImage;
+    if (!src) return;
+    get().notify('도면 이미지를 분석해 2D 벽·방·창호로 자동 변환 중...');
+    try {
+      let finalUnderlay = src;
+      if (cropNorm) {
+        finalUnderlay = await new Promise<string>((resolve, reject) => {
+          const im = new Image();
+          im.crossOrigin = 'anonymous';
+          im.onload = () => {
+            const c = document.createElement('canvas');
+            const sw = Math.max(40, Math.round(cropNorm.w * im.naturalWidth));
+            const sh = Math.max(40, Math.round(cropNorm.h * im.naturalHeight));
+            c.width = sw;
+            c.height = sh;
+            const cx = c.getContext('2d')!;
+            cx.drawImage(
+              im,
+              Math.round(cropNorm.x * im.naturalWidth),
+              Math.round(cropNorm.y * im.naturalHeight),
+              sw,
+              sh,
+              0,
+              0,
+              sw,
+              sh
+            );
+            resolve(c.toDataURL('image/png'));
+          };
+          im.onerror = () => reject(new Error('크롭 실패'));
+          im.src = src;
+        });
+      }
+
+      const vec = await autoVectorizeFloorPlan(finalUnderlay);
+      const { project, past } = get();
+      const next = clone(project);
+      if (vec.width) next.width = vec.width;
+      if (vec.depth) next.depth = vec.depth;
+      if (vec.underlayWidthM) next.underlayWidthM = vec.underlayWidthM;
+      if (vec.underlayDepthM) next.underlayDepthM = vec.underlayDepthM;
+      next.rooms = vec.rooms || [];
+      next.walls = vec.walls || [];
+      next.openings = vec.openings || [];
+
+      set((s) => ({
+        underlayImage: finalUnderlay,
+        underlayOpacity: 0.45,
+        project: next,
+        past: [...past.slice(-24), project],
+        future: [],
+        selection: null,
+        render3DVersion: s.render3DVersion + 1,
+      }));
+      get().notify(
+        `자동 변환 완료! 방 ${next.rooms.length}개 · 벽 ${next.walls.length}개가 생성되었습니다. 잘못된 부분은 클릭 후 Delete로 지우거나 수정하세요.`
+      );
+    } catch {
+      get().notify('도면 자동 변환 중 오류가 발생했습니다.');
+    }
   },
 
   addRoom: (name, kind, polygon) => {
