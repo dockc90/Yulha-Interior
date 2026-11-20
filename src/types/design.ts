@@ -1,5 +1,6 @@
-export type MaterialCategory =
+export type MaterialGroup =
   | 'floor'
+  | 'tile'
   | 'wall'
   | 'film'
   | 'ceiling'
@@ -7,32 +8,33 @@ export type MaterialCategory =
   | 'electrical'
   | 'appliance';
 
-export type TexturePattern =
+export type FinishPattern =
   | 'solid'
   | 'stucco'
-  | 'tile_600'
+  | 'porcelain_600'
   | 'wide_oak'
   | 'louver_wood'
   | 'matte_pet'
   | 'fabric';
 
-export interface MaterialSpec {
+export interface MaterialCatalogItem {
   id: string;
-  category: MaterialCategory;
+  group: MaterialGroup;
   brand: string;
+  series: string;
   name: string;
   spec: string;
-  pricePerUnit: number;
+  price: number;
   unit: string;
   color: string;
-  accentColor?: string;
-  pattern: TexturePattern;
+  subColor?: string;
+  pattern: FinishPattern;
   roughness: number;
   metalness: number;
-  tags: string[];
+  isTrend2026?: boolean;
 }
 
-export type RoomKind =
+export type SpaceType =
   | 'living'
   | 'kitchen'
   | 'master'
@@ -43,11 +45,14 @@ export type RoomKind =
   | 'dress'
   | 'balcony';
 
-export interface RoomZone {
+export interface SpaceZone {
   id: string;
   name: string;
-  kind: RoomKind;
-  polygon: { x: number; y: number }[];
+  type: SpaceType;
+  x: number; // meters
+  y: number;
+  width: number;
+  depth: number;
   floorMaterialId: string;
   ceilingType: 'well_cove' | 'flat';
   ceilingMaterialId: string;
@@ -55,7 +60,7 @@ export interface RoomZone {
   coveKelvin: '3000K' | '4000K' | '5700K';
 }
 
-export interface WallSegment {
+export interface CadWall {
   id: string;
   x1: number;
   y1: number;
@@ -64,18 +69,17 @@ export interface WallSegment {
   thickness: number;
   height: number;
   isExterior: boolean;
-  frontMaterialId: string;
-  backMaterialId: string;
-  displayLengthMm?: number;
+  materialId: string;
+  displayMm?: number;
 }
 
-export type OpeningKind = 'door' | 'sliding_glass_door' | 'window_blind' | 'entrance_door';
+export type PortalType = 'door' | 'sliding_glass' | 'window_blind' | 'entrance';
 
-export interface OpeningItem {
+export interface CadOpening {
   id: string;
   wallId: string;
-  kind: OpeningKind;
-  offset: number; // 0..1 along wall
+  type: PortalType;
+  offset: number; // 0..1
   width: number;
   height: number;
   sillHeight: number;
@@ -83,7 +87,7 @@ export interface OpeningItem {
   hasBlind?: boolean;
 }
 
-export type ObjectKind =
+export type ScenePropType =
   | 'fridge_4door'
   | 'tall_homebar'
   | 'island_counter'
@@ -99,50 +103,47 @@ export type ObjectKind =
   | 'wallpad'
   | 'wall_tv';
 
-export interface InteriorObject {
+export interface SceneProp {
   id: string;
-  name: string;
-  kind: ObjectKind;
+  label: string;
+  type: ScenePropType;
   x: number;
   y: number;
-  elevation: number; // height from floor (m)
+  elevation: number;
   width: number;
   depth: number;
   height: number;
-  rotation: number; // radians
+  rotation: number;
   materialId: string;
-  variant?: string; // e.g., 'option1' | 'option2' for tall_homebar
-  on?: boolean; // for lights / fan
+  variant?: 'option1' | 'option2';
+  powerOn?: boolean;
 }
 
-export interface ProjectData {
+export interface BlueprintProject {
   id: string;
-  title: string;
+  name: string;
   areaSqm: number;
   width: number;
   depth: number;
-  underlayWidthM?: number;
-  underlayDepthM?: number;
-  rooms: RoomZone[];
-  walls: WallSegment[];
-  openings: OpeningItem[];
-  objects: InteriorObject[];
+  spaces: SpaceZone[];
+  walls: CadWall[];
+  openings: CadOpening[];
+  props: SceneProp[];
 }
 
-export type SelectionRef =
-  | { kind: 'room'; id: string }
-  | { kind: 'wall'; id: string; side?: 'front' | 'back' }
+export type SelectedItem =
+  | { kind: 'space'; id: string }
+  | { kind: 'wall'; id: string }
   | { kind: 'opening'; id: string }
-  | { kind: 'object'; id: string }
+  | { kind: 'prop'; id: string }
   | null;
 
-export type ToolMode =
+export type CadTool =
   | 'select'
-  | 'add_room'
+  | 'add_space'
   | 'draw_wall'
   | 'add_door'
   | 'add_window'
   | 'add_outlet'
   | 'add_light'
-  | 'add_furniture'
-  | 'calibrate';
+  | 'add_prop';
