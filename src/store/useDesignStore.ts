@@ -28,7 +28,6 @@ interface DesignState {
   activeGroup: MaterialGroup;
   showDimensions: boolean;
   showCeiling: boolean;
-  mood: 'day' | 'sunset' | 'night';
   cameraView: 'iso' | 'living' | 'kitchen' | 'master' | 'walk';
 
   underlayUrl: string | null;
@@ -45,7 +44,6 @@ interface DesignState {
   setActiveGroup: (g: MaterialGroup) => void;
   setShowDimensions: (b: boolean) => void;
   setShowCeiling: (b: boolean) => void;
-  setMood: (m: 'day' | 'sunset' | 'night') => void;
   setCameraView: (c: 'iso' | 'living' | 'kitchen' | 'master' | 'walk') => void;
   setUnderlayUrl: (url: string | null) => void;
   setUnderlayOpacity: (op: number) => void;
@@ -95,8 +93,7 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   selection: null,
   activeGroup: 'floor',
   showDimensions: true,
-  showCeiling: true,
-  mood: 'day',
+  showCeiling: false,
   cameraView: 'iso',
 
   underlayUrl: null,
@@ -130,8 +127,7 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   setTool: (tool) => set({ tool }),
   setShowDimensions: (showDimensions) => set({ showDimensions }),
   setShowCeiling: (showCeiling) => set({ showCeiling }),
-  setMood: (mood) => set({ mood }),
-  setCameraView: (cameraView) => set({ cameraView }),
+  setCameraView: (cameraView) => set({ cameraView, showCeiling: cameraView !== 'iso' }),
   setActiveGroup: (activeGroup) => set({ activeGroup }),
   setUnderlayUrl: (underlayUrl) => set({ underlayUrl }),
   setUnderlayOpacity: (underlayOpacity) => set({ underlayOpacity }),

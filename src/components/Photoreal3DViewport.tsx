@@ -8,7 +8,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { useDesignStore } from '../store/useDesignStore';
 import { getCatalogItem } from '../data/brandCatalog';
 import { buildBumpMap, buildColorMap, createScenicTvTexture } from '../utils/realisticTextures';
-import { Camera, Eye, EyeOff, Moon, Sun, Sunset } from 'lucide-react';
+import { Camera, Eye, EyeOff } from 'lucide-react';
 
 function kelvinHex(k: '3000K' | '4000K' | '5700K') {
   if (k === '3000K') return 0xffcf87;
@@ -26,21 +26,14 @@ export const Photoreal3DViewport: React.FC = () => {
   const worldRef = useRef<THREE.Group | null>(null);
   const rotorsRef = useRef<THREE.Group[]>([]);
   const tvTexRef = useRef<THREE.CanvasTexture | null>(null);
-  const lightsRef = useRef<{
-    ambient: THREE.AmbientLight;
-    hemi: THREE.HemisphereLight;
-    key: THREE.DirectionalLight;
-  } | null>(null);
 
   const {
     published3DPlan,
     selection,
     showCeiling,
-    mood,
     cameraView,
     setSelection,
     setShowCeiling,
-    setMood,
     setCameraView,
   } = useDesignStore();
 
@@ -90,9 +83,9 @@ export const Photoreal3DViewport: React.FC = () => {
     controls.maxDistance = 30;
     controlsRef.current = controls;
 
-    const ambient = new THREE.AmbientLight(0xfffdf9, 0.52);
-    const hemi = new THREE.HemisphereLight(0xffffff, 0xd8d2c8, 0.65);
-    const key = new THREE.DirectionalLight(0xfffaf0, 0.78);
+    const ambient = new THREE.AmbientLight(0xffffff, 0.72);
+    const hemi = new THREE.HemisphereLight(0xffffff, 0xe8e6e0, 0.68);
+    const key = new THREE.DirectionalLight(0xffffff, 0.65);
     key.position.set(-8, 16, 12);
     key.castShadow = true;
     key.shadow.mapSize.set(2048, 2048);
@@ -104,7 +97,6 @@ export const Photoreal3DViewport: React.FC = () => {
     key.shadow.camera.bottom = -14;
     key.shadow.bias = -0.0004;
     scene.add(ambient, hemi, key);
-    lightsRef.current = { ambient, hemi, key };
 
     const grid = new THREE.GridHelper(32, 32, 0xdad7d0, 0xedece8);
     grid.position.y = -0.02;
@@ -196,41 +188,6 @@ export const Photoreal3DViewport: React.FC = () => {
     ctrl.update();
   }, [cameraView, published3DPlan.id, published3DPlan.width, published3DPlan.depth]);
 
-  useEffect(() => {
-    const sc = sceneRef.current;
-    const rd = rendererRef.current;
-    const l = lightsRef.current;
-    if (!sc || !rd || !l) return;
-    if (mood === 'day') {
-      sc.background = new THREE.Color(0xf4f3ef);
-      l.ambient.color.setHex(0xfffdf9);
-      l.ambient.intensity = 0.52;
-      l.hemi.intensity = 0.65;
-      l.key.color.setHex(0xfffaf0);
-      l.key.intensity = 0.78;
-      rd.toneMappingExposure = 1.03;
-      sc.environmentIntensity = 0.48;
-    } else if (mood === 'sunset') {
-      sc.background = new THREE.Color(0xede0d0);
-      l.ambient.color.setHex(0xffd4a8);
-      l.ambient.intensity = 0.42;
-      l.hemi.intensity = 0.5;
-      l.key.color.setHex(0xffaa60);
-      l.key.intensity = 0.88;
-      rd.toneMappingExposure = 1.0;
-      sc.environmentIntensity = 0.36;
-    } else {
-      sc.background = new THREE.Color(0x141820);
-      l.ambient.color.setHex(0x475569);
-      l.ambient.intensity = 0.24;
-      l.hemi.intensity = 0.22;
-      l.key.color.setHex(0x94a3b8);
-      l.key.intensity = 0.2;
-      rd.toneMappingExposure = 0.96;
-      sc.environmentIntensity = 0.18;
-    }
-  }, [mood]);
-
   // Rebuild 3D World whenever published3DPlan or visual state changes
   useEffect(() => {
     const world = worldRef.current;
@@ -290,7 +247,7 @@ export const Photoreal3DViewport: React.FC = () => {
           });
 
           if (sp.coveLightOn) {
-            const pt = new THREE.PointLight(ledCol, mood === 'night' ? 2.0 : 0.75, 9, 1.4);
+            const pt = new THREE.PointLight(ledCol, 0.75, 9, 1.4);
             pt.position.set(cx, 2.25, cz);
             world.add(pt);
           }
@@ -351,7 +308,7 @@ export const Photoreal3DViewport: React.FC = () => {
         const isOpSel = selection?.kind === 'opening' && selection.id === op.id;
         const fMat = new THREE.MeshStandardMaterial({
           map: buildColorMap(fSpec, 1, 1),
-          color: isOpSel ? '#2563EB' : fSpec.color,
+          color: isOpSel ? '#93C5FD' : '#FFFFFF',
           roughness: fSpec.roughness,
           metalness: fSpec.metalness,
         });
@@ -368,22 +325,34 @@ export const Photoreal3DViewport: React.FC = () => {
         rp.position.set(fw / 2 - ft / 2, fh / 2, 0);
         const tb = new THREE.Mesh(new THREE.BoxGeometry(fw, ft, w.thickness + 0.03), fMat);
         tb.position.set(0, fh - ft / 2, 0);
-        og.add(lp, rp, tb);
+        const bb = new THREE.Mesh(new THREE.BoxGeometry(fw, ft, w.thickness + 0.03), fMat);
+        bb.position.set(0, ft / 2, 0);
+        og.add(lp, rp, tb, bb);
 
         if (op.type === 'window_blind') {
           const glass = new THREE.Mesh(
-            new THREE.BoxGeometry(fw - 0.08, fh - 0.08, 0.015),
-            new THREE.MeshPhysicalMaterial({ color: 0xdbeafe, transparent: true, opacity: 0.3, roughness: 0.06 })
+            new THREE.BoxGeometry(fw - 0.08, fh - 0.08, 0.012),
+            new THREE.MeshPhysicalMaterial({ color: 0xeff6ff, transparent: true, opacity: 0.24, roughness: 0.05 })
           );
           glass.position.set(0, fh / 2, 0);
           og.add(glass);
 
+          // Mullion dividers for large windows (4-panel look like ref image 1)
+          if (fw > 2.4) {
+            [-fw * 0.25, 0, fw * 0.25].forEach((mx) => {
+              const mul = new THREE.Mesh(new THREE.BoxGeometry(0.035, fh - 0.08, w.thickness * 0.7), fMat);
+              mul.position.set(mx, fh / 2, 0);
+              og.add(mul);
+            });
+          }
+
+          // Clean wood blinds hanging in top 38% only so view stays open
           if (op.hasBlind) {
             const slatMat = new THREE.MeshStandardMaterial({ color: fSpec.color, roughness: 0.45 });
-            for (let y = fh * 0.42; y <= fh * 0.96; y += 0.055) {
-              const slat = new THREE.Mesh(new THREE.BoxGeometry(fw - 0.1, 0.01, 0.045), slatMat);
-              slat.position.set(0, y, w.thickness / 2 + 0.02);
-              slat.rotation.x = 0.25;
+            for (let y = fh * 0.62; y <= fh * 0.94; y += 0.055) {
+              const slat = new THREE.Mesh(new THREE.BoxGeometry(fw - 0.12, 0.008, 0.03), slatMat);
+              slat.position.set(0, y, w.thickness / 2 + 0.015);
+              slat.rotation.x = 0.2;
               og.add(slat);
             }
           }
@@ -419,29 +388,32 @@ export const Photoreal3DViewport: React.FC = () => {
 
       const baseMat = new THREE.MeshStandardMaterial({
         map: buildColorMap(spec, 1, 1),
-        color: isSel ? '#3B82F6' : spec.color,
+        color: isSel ? '#93C5FD' : '#FFFFFF',
         roughness: spec.roughness,
         metalness: spec.metalness,
       });
 
       if (pr.type === 'fridge_4door') {
-        const gap = new THREE.MeshStandardMaterial({ color: 0x181a1d, roughness: 0.45 });
-        const body = new THREE.Mesh(new THREE.BoxGeometry(pr.width, pr.height, pr.depth), gap);
-        body.position.y = pr.height / 2;
+        const gap = new THREE.MeshStandardMaterial({ color: 0x222428, roughness: 0.45 });
+        const body = new THREE.Mesh(new THREE.BoxGeometry(pr.width, pr.height, pr.depth - 0.03), baseMat);
+        body.position.set(0, pr.height / 2, -0.015);
         body.castShadow = true;
-        const upper = new THREE.Mesh(new THREE.BoxGeometry(pr.width - 0.02, 0.4, pr.depth + 0.01), baseMat);
-        upper.position.set(0, pr.height - 0.21, 0.005);
+        const recess = new THREE.Mesh(new THREE.BoxGeometry(pr.width - 0.02, pr.height - 0.04, 0.02), gap);
+        recess.position.set(0, pr.height / 2, pr.depth / 2 - 0.02);
+
+        const upper = new THREE.Mesh(new THREE.BoxGeometry(pr.width - 0.01, 0.42, 0.035), baseMat);
+        upper.position.set(0, pr.height - 0.22, pr.depth / 2);
         const dw = (pr.width - 0.05) / 2;
-        const th = (pr.height - 0.5) * 0.58;
-        const bh = (pr.height - 0.5) * 0.4;
+        const th = (pr.height - 0.52) * 0.58;
+        const bh = (pr.height - 0.52) * 0.4;
         [-1, 1].forEach((s) => {
-          const td = new THREE.Mesh(new THREE.BoxGeometry(dw, th, 0.03), baseMat);
-          td.position.set(s * (dw / 2 + 0.008), pr.height - 0.45 - th / 2, pr.depth / 2 + 0.006);
-          const bd = new THREE.Mesh(new THREE.BoxGeometry(dw, bh, 0.03), baseMat);
-          bd.position.set(s * (dw / 2 + 0.008), bh / 2 + 0.03, pr.depth / 2 + 0.006);
+          const td = new THREE.Mesh(new THREE.BoxGeometry(dw, th, 0.035), baseMat);
+          td.position.set(s * (dw / 2 + 0.01), pr.height - 0.47 - th / 2, pr.depth / 2);
+          const bd = new THREE.Mesh(new THREE.BoxGeometry(dw, bh, 0.035), baseMat);
+          bd.position.set(s * (dw / 2 + 0.01), bh / 2 + 0.03, pr.depth / 2);
           g.add(td, bd);
         });
-        g.add(body, upper);
+        g.add(body, recess, upper);
       } else if (pr.type === 'tall_homebar') {
         const wood = new THREE.MeshStandardMaterial({ color: 0xb68655, roughness: 0.52 });
         const dark = new THREE.MeshStandardMaterial({ color: 0x26282c, roughness: 0.4 });
@@ -485,12 +457,22 @@ export const Photoreal3DViewport: React.FC = () => {
         } else {
           const sink = new THREE.Mesh(
             new THREE.BoxGeometry(0.75, 0.02, 0.46),
-            new THREE.MeshStandardMaterial({ color: 0x9ca3af, metalness: 0.72, roughness: 0.24 })
+            new THREE.MeshStandardMaterial({ color: 0x9ca3af, metalness: 0.78, roughness: 0.2 })
           );
-          sink.position.set(0.4, pr.height + 0.005, 0);
+          sink.position.set(0.3, pr.height + 0.005, 0);
+          const faucetMat = new THREE.MeshStandardMaterial({ color: 0xd1d5db, metalness: 0.85, roughness: 0.15 });
+          const faucetStem = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.016, 0.28, 12), faucetMat);
+          faucetStem.position.set(0.3, pr.height + 0.14, -0.2);
+          const faucetSpout = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.02, 0.14), faucetMat);
+          faucetSpout.position.set(0.3, pr.height + 0.28, -0.14);
           const upper = new THREE.Mesh(new THREE.BoxGeometry(pr.width, 0.68, 0.36), baseMat);
           upper.position.set(0, 2.05, -pr.depth * 0.22);
-          g.add(sink, upper);
+          const underLed = new THREE.Mesh(
+            new THREE.BoxGeometry(pr.width * 0.94, 0.015, 0.025),
+            new THREE.MeshBasicMaterial({ color: 0xfef08a })
+          );
+          underLed.position.set(0, 1.7, -pr.depth * 0.1);
+          g.add(sink, faucetStem, faucetSpout, upper, underLed);
         }
       } else if (pr.type === 'induction_3') {
         const plate = new THREE.Mesh(new THREE.BoxGeometry(pr.width, 0.025, pr.depth), baseMat);
@@ -509,8 +491,16 @@ export const Photoreal3DViewport: React.FC = () => {
         const seat = new THREE.Mesh(new THREE.BoxGeometry(pr.width, 0.38, pr.depth), baseMat);
         seat.position.y = 0.19;
         seat.castShadow = true;
-        const back = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.44, pr.depth), baseMat);
-        back.position.set(-pr.width / 2 + 0.12, 0.56, 0);
+        const back = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.48, pr.depth), baseMat);
+        back.position.set(-pr.width / 2 + 0.12, 0.58, 0);
+        // Sage green accent cushions (like reference image 1)
+        const cushionMat = new THREE.MeshStandardMaterial({ color: 0x8fa392, roughness: 0.85 });
+        [-pr.depth * 0.28, pr.depth * 0.28].forEach((cz) => {
+          const cush = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.32, 0.36), cushionMat);
+          cush.position.set(-pr.width / 2 + 0.32, 0.54, cz);
+          cush.rotation.z = -0.22;
+          g.add(cush);
+        });
         const otto = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.36, 0.95), baseMat);
         otto.position.set(pr.width + 0.55, 0.18, 0);
         otto.castShadow = true;
@@ -527,6 +517,30 @@ export const Photoreal3DViewport: React.FC = () => {
             g.add(leg);
           })
         );
+        // 4 Dining chairs + small table vase (like reference image 2)
+        const chairSeatMat = new THREE.MeshStandardMaterial({ color: 0xf2ece1, roughness: 0.78 });
+        [-pr.width * 0.26, pr.width * 0.26].forEach((cx) => {
+          [-pr.depth * 0.68, pr.depth * 0.68].forEach((cz) => {
+            const cSeat = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.05, 0.42), chairSeatMat);
+            cSeat.position.set(cx, 0.44, cz);
+            const cBack = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.36, 0.04), chairSeatMat);
+            cBack.position.set(cx, 0.64, cz + (cz > 0 ? 0.19 : -0.19));
+            const cLeg = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.42, 0.36), baseMat);
+            cLeg.position.set(cx, 0.21, cz);
+            g.add(cSeat, cBack, cLeg);
+          });
+        });
+        const vase = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.04, 0.05, 0.12, 12),
+          new THREE.MeshStandardMaterial({ color: 0xe5e7eb, roughness: 0.2 })
+        );
+        vase.position.set(0, pr.height + 0.06, 0);
+        const plant = new THREE.Mesh(
+          new THREE.SphereGeometry(0.09, 12, 10),
+          new THREE.MeshStandardMaterial({ color: 0x4d7c0f, roughness: 0.8 })
+        );
+        plant.position.set(0, pr.height + 0.17, 0);
+        g.add(vase, plant);
       } else if (pr.type === 'bed_queen') {
         const frame = new THREE.Mesh(new THREE.BoxGeometry(pr.width, 0.28, pr.depth), baseMat);
         frame.position.y = 0.14;
@@ -562,7 +576,7 @@ export const Photoreal3DViewport: React.FC = () => {
         );
         g.add(trim);
         if (pr.powerOn) {
-          const sp = new THREE.PointLight(0xffe4b5, mood === 'night' ? 1.2 : 0.35, 5, 1.8);
+          const sp = new THREE.PointLight(0xffe4b5, 0.35, 5, 1.8);
           sp.position.y = -0.15;
           g.add(sp);
         }
@@ -606,7 +620,7 @@ export const Photoreal3DViewport: React.FC = () => {
 
       world.add(g);
     });
-  }, [published3DPlan, selection, showCeiling, mood]);
+  }, [published3DPlan, selection, showCeiling]);
 
   const handleSnapshot = () => {
     const r = rendererRef.current;
@@ -648,24 +662,6 @@ export const Photoreal3DViewport: React.FC = () => {
         ))}
 
         <div className="w-px h-4 bg-[#E9E9E7] mx-0.5" />
-
-        {(
-          [
-            ['day', <Sun key="d" className="w-3.5 h-3.5" />],
-            ['sunset', <Sunset key="s" className="w-3.5 h-3.5" />],
-            ['night', <Moon key="n" className="w-3.5 h-3.5" />],
-          ] as const
-        ).map(([m, icon]) => (
-          <button
-            key={m}
-            onClick={() => setMood(m)}
-            className={`p-1.5 rounded-md transition ${
-              mood === m ? 'bg-[#1F2937] text-amber-300' : 'text-[#787774] hover:text-[#37352F]'
-            }`}
-          >
-            {icon}
-          </button>
-        ))}
 
         <button
           onClick={() => setShowCeiling(!showCeiling)}

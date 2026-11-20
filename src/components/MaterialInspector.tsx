@@ -37,16 +37,24 @@ export const MaterialInspector: React.FC = () => {
 
   const [query, setQuery] = useState('');
   const [mmInput, setMmInput] = useState('');
+  const [brandFilter, setBrandFilter] = useState('전체');
 
   const selSpace = selection?.kind === 'space' ? draftPlan.spaces.find((s) => s.id === selection.id) : null;
   const selWall = selection?.kind === 'wall' ? draftPlan.walls.find((w) => w.id === selection.id) : null;
   const selOpening = selection?.kind === 'opening' ? draftPlan.openings.find((o) => o.id === selection.id) : null;
   const selProp = selection?.kind === 'prop' ? draftPlan.props.find((p) => p.id === selection.id) : null;
 
+  const brands = [
+    '전체',
+    ...Array.from(new Set(BRAND_CATALOG.filter((m) => m.group === activeGroup).map((m) => m.brand))),
+  ];
+  const activeBrand = brands.includes(brandFilter) ? brandFilter : '전체';
+
   const q = query.trim().toLowerCase();
   const items = BRAND_CATALOG.filter(
     (m) =>
       m.group === activeGroup &&
+      (activeBrand === '전체' || m.brand === activeBrand) &&
       (!q ||
         m.name.toLowerCase().includes(q) ||
         m.brand.toLowerCase().includes(q) ||
@@ -260,6 +268,21 @@ export const MaterialInspector: React.FC = () => {
               }`}
             >
               {t.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-1 overflow-x-auto pb-1">
+          {brands.map((b) => (
+            <button
+              key={b}
+              onClick={() => setBrandFilter(b)}
+              className={`px-2 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap transition ${
+                activeBrand === b
+                  ? 'bg-[#0F7B6C] text-white'
+                  : 'bg-[#F7F7F5] text-[#787774] hover:text-[#37352F]'
+              }`}
+            >
+              {b}
             </button>
           ))}
         </div>
