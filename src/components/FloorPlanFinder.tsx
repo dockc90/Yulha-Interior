@@ -30,9 +30,10 @@ export const FloorPlanFinder: React.FC<Props> = ({ onApplyImage }) => {
     },
     {
       name: '직방',
-      desc: `'${complex}' 타입별 도면`,
+      desc: `아파트 지도 열기 (단지명 자동복사)`,
       color: 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100',
-      url: `https://www.zigbang.com/home/apt/search?q=${encodeURIComponent(complex)}`,
+      url: `https://www.zigbang.com/home/apt`,
+      copyOnClick: true,
     },
     {
       name: '네이버 이미지',
@@ -122,6 +123,9 @@ export const FloorPlanFinder: React.FC<Props> = ({ onApplyImage }) => {
             href={p.url}
             target="_blank"
             rel="noreferrer"
+            onClick={() => {
+              navigator.clipboard?.writeText(complex).catch(() => {});
+            }}
             className={`p-2.5 rounded-lg border transition flex items-center justify-between gap-2 ${p.color}`}
           >
             <div className="min-w-0">
