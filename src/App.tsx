@@ -63,6 +63,35 @@ export function App() {
   const [libraryMode, setLibraryMode] = useState<'save' | 'load' | null>(null);
 
   useEffect(() => {
+    const onPasteGlobal = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          const f = item.getAsFile();
+          if (!f) continue;
+          const reader = new FileReader();
+          reader.onload = () => {
+            if (typeof reader.result === 'string') {
+              const st = useProjectStore.getState();
+              if (!st.hasActiveProject) {
+                st.openProject(createBlankCanvasPlan());
+              }
+              st.setUnderlayImage(reader.result);
+              st.notify('붙여넣은 도면을 2D 밑그림으로 적용했습니다.');
+              setUnderlayOpen(false);
+            }
+          };
+          reader.readAsDataURL(f);
+          break;
+        }
+      }
+    };
+    window.addEventListener('paste', onPasteGlobal);
+    return () => window.removeEventListener('paste', onPasteGlobal);
+  }, []);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!hasActiveProject) return;
       const tag = (e.target as HTMLElement)?.tagName;
