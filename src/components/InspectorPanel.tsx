@@ -307,32 +307,63 @@ export const InspectorPanel: React.FC = () => {
 
       {/* 3. Material Cards */}
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
-        {items.map((mat) => (
-          <div
-            key={mat.id}
-            onClick={() => applyMaterial(mat)}
-            className="group cursor-pointer p-2.5 rounded-lg border border-[#E9E9E7] hover:border-[#0F7B6C] hover:bg-[#FBFBFA] transition flex items-center gap-3"
-          >
+        {items.map((mat) => {
+          const isApplied =
+            (selRoom && (selRoom.floorMaterialId === mat.id || selRoom.ceilingMaterialId === mat.id)) ||
+            (selWall && selWall.frontMaterialId === mat.id) ||
+            (selOpening && selOpening.frameMaterialId === mat.id) ||
+            (selObj && selObj.materialId === mat.id);
+
+          return (
             <div
-              className="w-11 h-11 rounded-md border border-[#D3D1CB] shrink-0 shadow-2xs"
-              style={{
-                background: mat.accentColor
-                  ? `linear-gradient(135deg, ${mat.color} 60%, ${mat.accentColor} 100%)`
-                  : mat.color,
-              }}
-            />
-            <div className="min-w-0 flex-1">
-              <div className="text-[10px] font-semibold text-[#787774]">{mat.brand}</div>
-              <div className="text-xs font-bold text-[#37352F] truncate">{mat.name}</div>
-              <div className="text-[10px] text-[#9B9A97] flex items-center justify-between mt-0.5">
-                <span>{mat.spec}</span>
-                <span className="font-semibold text-[#0F7B6C]">
-                  {mat.pricePerUnit.toLocaleString()}원/{mat.unit}
-                </span>
+              key={mat.id}
+              onClick={() => applyMaterial(mat)}
+              className={`group cursor-pointer p-2.5 rounded-lg border transition flex items-center gap-3 ${
+                isApplied
+                  ? 'border-[#0F7B6C] bg-[#F3FAF8]'
+                  : 'border-[#E9E9E7] hover:border-[#0F7B6C] hover:bg-[#FBFBFA]'
+              }`}
+            >
+              <div
+                className="w-11 h-11 rounded-md border border-[#D3D1CB] shrink-0 shadow-2xs"
+                style={{
+                  background: mat.accentColor
+                    ? `linear-gradient(135deg, ${mat.color} 60%, ${mat.accentColor} 100%)`
+                    : mat.color,
+                }}
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-1">
+                  <span className="text-[10px] font-semibold text-[#787774] truncate">{mat.brand}</span>
+                  {isApplied && (
+                    <span className="px-1.5 py-0.2 rounded bg-[#DDEDEA] text-[#0F7B6C] text-[9px] font-bold shrink-0">
+                      적용됨
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs font-bold text-[#37352F] truncate">{mat.name}</div>
+                <div className="text-[10px] text-[#9B9A97] flex items-center justify-between mt-0.5 gap-1">
+                  <span className="truncate">{mat.spec}</span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="font-semibold text-[#0F7B6C]">
+                      {mat.pricePerUnit.toLocaleString()}원
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        applyMaterialToAll(mat);
+                      }}
+                      className="px-1.5 py-0.5 rounded bg-[#F7F7F5] hover:bg-[#0F7B6C] hover:text-white border border-[#E9E9E7] text-[9px] font-semibold text-[#37352F] transition"
+                    >
+                      전체
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </aside>
   );

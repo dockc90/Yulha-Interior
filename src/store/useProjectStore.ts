@@ -525,7 +525,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   applyMaterial: (mat) => {
     const { selection, project, past } = get();
     if (!selection) {
-      get().notify('먼저 3D 또는 2D에서 적용할 영역(바닥 · 벽 · 창틀 · 콘센트 · 가전)을 클릭하세요.');
+      get().applyMaterialToAll(mat);
       return;
     }
     const next = clone(project);
@@ -533,10 +533,37 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     if (selection.kind === 'room') {
       const rm = next.rooms.find((r) => r.id === selection.id);
       if (!rm) return;
-      if (mat.category === 'floor') rm.floorMaterialId = mat.id;
-      else if (mat.category === 'ceiling') rm.ceilingMaterialId = mat.id;
-      else {
-        get().notify('선택된 방에는 바닥재 또는 천장재를 적용할 수 있습니다.');
+      if (mat.category === 'floor') {
+        rm.floorMaterialId = mat.id;
+      } else if (mat.category === 'ceiling') {
+        rm.ceilingMaterialId = mat.id;
+      } else if (mat.category === 'wall') {
+        const xs = rm.polygon.map((p) => p.x);
+        const ys = rm.polygon.map((p) => p.y);
+        const minX = Math.min(...xs) - 0.35;
+        const maxX = Math.max(...xs) + 0.35;
+        const minY = Math.min(...ys) - 0.35;
+        const maxY = Math.max(...ys) + 0.35;
+        let hit = false;
+        next.walls.forEach((w) => {
+          const mx = (w.x1 + w.x2) / 2;
+          const my = (w.y1 + w.y2) / 2;
+          if (mx >= minX && mx <= maxX && my >= minY && my <= maxY) {
+            w.frontMaterialId = mat.id;
+            w.backMaterialId = mat.id;
+            hit = true;
+          }
+        });
+        if (!hit) {
+          next.walls.forEach((w) => {
+            w.frontMaterialId = mat.id;
+            w.backMaterialId = mat.id;
+          });
+        }
+      } else if (mat.category === 'film') {
+        next.openings.forEach((o) => (o.frameMaterialId = mat.id));
+      } else {
+        get().applyMaterialToAll(mat);
         return;
       }
     } else if (selection.kind === 'wall') {
@@ -550,7 +577,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
           w.backMaterialId = mat.id;
         }
       } else {
-        get().notify('벽면에는 벽지 · 월판넬 · 인테리어 필름을 적용하세요.');
+        get().applyMaterialToAll(mat);
         return;
       }
     } else if (selection.kind === 'opening') {
@@ -558,7 +585,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       if (!op) return;
       if (mat.category === 'film') op.frameMaterialId = mat.id;
       else {
-        get().notify('문/창틀에는 인테리어 필름 카테고리를 선택하세요.');
+        get().applyMaterialToAll(mat);
         return;
       }
     } else if (selection.kind === 'object') {
@@ -583,6 +610,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         w.frontMaterialId = mat.id;
         w.backMaterialId = mat.id;
       });
+    } else if (mat.category === 'ceiling') {
+      next.rooms.forEach((r) => {
+        r.ceilingMaterialId = mat.id;
+      });
     } else if (mat.category === 'film') {
       next.openings.forEach((o) => {
         o.frameMaterialId = mat.id;
@@ -592,6 +623,14 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         if (o.kind === 'outlet_2' || o.kind === 'switch_2' || o.kind === 'wallpad') {
           o.materialId = mat.id;
         }
+      });
+    } else if (mat.category === 'lighting') {
+      next.objects.forEach((o) => {
+        if (o.kind === 'ceiling_fan' || o.kind === 'downlight') o.materialId = mat.id;
+      });
+    } else if (mat.category === 'appliance') {
+      next.objects.forEach((o) => {
+        if (o.kind === 'fridge_4door' || o.kind === 'induction_3') o.materialId = mat.id;
       });
     }
     set({ project: next, past: [...past.slice(-24), project], future: [] });
