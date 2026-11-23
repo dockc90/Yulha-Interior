@@ -12,6 +12,7 @@ import {
   Box,
 } from 'lucide-react';
 import { usePlannerStore, ViewMode } from './store/usePlannerStore';
+import { LandingPage } from './components/LandingPage';
 import { LeftCatalogSidebar } from './components/LeftCatalogSidebar';
 import { Viewport2D } from './components/Viewport2D';
 import { Viewport3D } from './components/Viewport3D';
@@ -19,6 +20,7 @@ import { RightPropertyPanel } from './components/RightPropertyPanel';
 import { EstimateModal, ProjectsModal, UnderlayModal } from './components/Modals';
 
 export function App() {
+  const projectId = usePlannerStore((s) => s.project.id);
   const projectTitle = usePlannerStore((s) => s.project.title);
   const viewMode = usePlannerStore((s) => s.viewMode);
   const pastCount = usePlannerStore((s) => s.past.length);
@@ -32,12 +34,20 @@ export function App() {
   const rotateSelected = usePlannerStore((s) => s.rotateSelected);
   const triggerSnapshot = usePlannerStore((s) => s.triggerSnapshot);
 
+  const [inStudio, setInStudio] = useState(false);
   const [showEstimate, setShowEstimate] = useState(false);
   const [showUnderlay, setShowUnderlay] = useState(false);
   const [showProjects, setShowProjects] = useState(false);
 
-  // Global keyboard shortcuts (Undo/Redo/Delete/Rotate)
+  // Enter studio automatically if a saved project is loaded from landing
   useEffect(() => {
+    if (!inStudio && showProjects) {
+      // Wait for user action in ProjectsModal
+    }
+  }, [inStudio, projectId, showProjects]);
+
+  useEffect(() => {
+    if (!inStudio) return;
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) {
@@ -57,7 +67,26 @@ export function App() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [undo, redo, deleteSelected, rotateSelected]);
+  }, [inStudio, undo, redo, deleteSelected, rotateSelected]);
+
+  if (!inStudio) {
+    return (
+      <>
+        <LandingPage
+          onEnterStudio={() => setInStudio(true)}
+          onOpenProjects={() => setShowProjects(true)}
+        />
+        {showProjects && (
+          <ProjectsModal
+            onClose={() => {
+              setShowProjects(false);
+              setInStudio(true);
+            }}
+          />
+        )}
+      </>
+    );
+  }
 
   const viewTabs: { mode: ViewMode; label: string; icon: React.ReactNode }[] = [
     { mode: '2d', label: '2D 도면', icon: <Square className="w-3.5 h-3.5" /> },
@@ -68,22 +97,24 @@ export function App() {
 
   return (
     <div className="h-screen w-screen flex flex-col bg-slate-100 text-slate-900 overflow-hidden">
-      {/* Top Studio Bar */}
       <header className="h-13 shrink-0 bg-white border-b border-slate-200 px-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-sm">
+          <button
+            onClick={() => setInStudio(false)}
+            className="flex items-center gap-2 shrink-0 text-left hover:opacity-80 transition-opacity"
+            title="첫 화면으로 돌아가기"
+          >
+            <div className="w-8 h-8 rounded-lg bg-[#242220] text-[#FAF8F5] flex items-center justify-center font-serif font-bold text-sm">
               Y
             </div>
             <div className="leading-tight hidden sm:block">
-              <p className="text-xs font-extrabold text-slate-900">YULHA STUDIO</p>
+              <p className="text-xs font-extrabold text-slate-900">YULHA ATELIER</p>
               <p className="text-[10px] text-slate-400 truncate max-w-[160px]">{projectTitle}</p>
             </div>
-          </div>
+          </button>
 
           <div className="h-5 w-px bg-slate-200" />
 
-          {/* Korean Apartment Presets */}
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-[11px] font-semibold">
             <button
               onClick={() => loadPreset('34py')}
@@ -109,7 +140,6 @@ export function App() {
           </div>
         </div>
 
-        {/* Center View Mode Switcher */}
         <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
           {viewTabs.map((t) => (
             <button
@@ -127,7 +157,6 @@ export function App() {
           ))}
         </div>
 
-        {/* Right Utility Actions */}
         <div className="flex items-center gap-1.5 shrink-0">
           <button
             onClick={undo}
@@ -177,7 +206,6 @@ export function App() {
         </div>
       </header>
 
-      {/* Main Workspace */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
         <LeftCatalogSidebar onOpenUnderlayModal={() => setShowUnderlay(true)} />
 

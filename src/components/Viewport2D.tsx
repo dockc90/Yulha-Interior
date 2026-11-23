@@ -3,12 +3,12 @@ import { Maximize2, Crosshair, RotateCw, Trash2 } from 'lucide-react';
 import { usePlannerStore } from '../store/usePlannerStore';
 import { distPointToSeg, pointInPolygon, projectBounds } from '../engine/cadGraph';
 import { getMat } from '../data/materialsDb';
-import { FloorProject } from '../types/planner';
+import { FloorProject, SceneItem } from '../types/planner';
 
 interface Camera2D {
-  x: number; // world meters at canvas center
+  x: number;
   y: number;
-  zoom: number; // px per meter
+  zoom: number;
 }
 
 type DragState =
@@ -20,6 +20,169 @@ type DragState =
   | { kind: 'room_box'; startX: number; startY: number; curX: number; curY: number };
 
 const SNAP_GRID_M = 0.05;
+
+function drawItemSymbol2D(
+  ctx: CanvasRenderingContext2D,
+  item: SceneItem,
+  isSel: boolean,
+  isHovered: boolean,
+  zoom: number,
+) {
+  const hw = item.width / 2;
+  const hd = item.depth / 2;
+  const lw = (isSel ? 2.2 : 1.1) / zoom;
+
+  ctx.save();
+  ctx.translate(item.x, item.y);
+  ctx.rotate(item.rotation);
+
+  ctx.strokeStyle = isSel ? '#2563EB' : isHovered ? '#0F172A' : '#475569';
+  ctx.lineWidth = lw;
+
+  if (item.kind === 'downlight') {
+    ctx.beginPath();
+    ctx.arc(0, 0, 0.06, 0, Math.PI * 2);
+    ctx.fillStyle = '#FEF3C7';
+    ctx.fill();
+    ctx.stroke();
+  } else if (item.kind === 'ceiling_fan') {
+    ctx.strokeStyle = isSel ? '#2563EB' : 'rgba(71, 85, 105, 0.55)';
+    ctx.beginPath();
+    ctx.arc(0, 0, 0.09, 0, Math.PI * 2);
+    ctx.fillStyle = '#F8FAFC';
+    ctx.fill();
+    ctx.stroke();
+    for (let i = 0; i < 3; i++) {
+      ctx.save();
+      ctx.rotate((i * Math.PI * 2) / 3);
+      ctx.beginPath();
+      ctx.ellipse(hw * 0.52, 0, hw * 0.42, 0.075, 0, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(226, 232, 240, 0.45)';
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+  } else if (item.kind === 'rug_round') {
+    ctx.beginPath();
+    ctx.arc(0, 0, hw, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(241, 245, 249, 0.65)';
+    ctx.fill();
+    ctx.setLineDash([4 / zoom, 4 / zoom]);
+    ctx.strokeStyle = isSel ? '#2563EB' : '#94A3B8';
+    ctx.stroke();
+    ctx.setLineDash([]);
+  } else if (item.kind === 'induction_3') {
+    ctx.fillStyle = '#1E293B';
+    ctx.fillRect(-hw, -hd, item.width, item.depth);
+    ctx.strokeRect(-hw, -hd, item.width, item.depth);
+    ctx.strokeStyle = '#94A3B8';
+    [
+      [-hw * 0.42, -hd * 0.25, 0.08],
+      [-hw * 0.42, hd * 0.35, 0.065],
+      [hw * 0.35, 0, 0.105],
+    ].forEach(([bx, by, r]) => {
+      ctx.beginPath();
+      ctx.arc(bx, by, r, 0, Math.PI * 2);
+      ctx.stroke();
+    });
+  } else if (item.kind === 'outlet_2' || item.kind === 'switch_2' || item.kind === 'wallpad') {
+    ctx.fillStyle = '#FEF3C7';
+    ctx.fillRect(-hw, -Math.max(hd, 0.03), item.width, Math.max(item.depth, 0.06));
+    ctx.strokeRect(-hw, -Math.max(hd, 0.03), item.width, Math.max(item.depth, 0.06));
+  } else {
+    // Standard furniture box
+    ctx.fillStyle = isSel ? '#EFF6FF' : '#FFFFFF';
+    ctx.beginPath();
+    ctx.roundRect(-hw, -hd, item.width, item.depth, 0.04);
+    ctx.fill();
+    ctx.stroke();
+
+    // Subtle interior architectural details
+    ctx.strokeStyle = isSel ? '#93C5FD' : '#CBD5E1';
+    ctx.lineWidth = 0.9 / zoom;
+
+    if (item.kind === 'sofa_modular') {
+      // Backrest & cushion lines
+      if (item.depth > item.width) {
+        ctx.strokeRect(-hw + 0.05, -hd + 0.05, 0.2, item.depth - 0.1);
+        ctx.beginPath();
+        ctx.moveTo(-hw + 0.25, 0);
+        ctx.lineTo(hw - 0.05, 0);
+        ctx.stroke();
+      } else {
+        ctx.strokeRect(-hw + 0.05, -hd + 0.05, item.width - 0.1, 0.2);
+        ctx.beginPath();
+        ctx.moveTo(0, -hd + 0.25);
+        ctx.lineTo(0, hd - 0.05);
+        ctx.stroke();
+      }
+    } else if (item.kind === 'bed_queen') {
+      // Headboard + 2 pillows + duvet line
+      ctx.strokeRect(-hw + 0.08, -hd + 0.08, item.width - 0.16, 0.12);
+      ctx.strokeRect(-hw + 0.16, -hd + 0.28, item.width * 0.34, 0.28);
+      ctx.strokeRect(hw - 0.16 - item.width * 0.34, -hd + 0.28, item.width * 0.34, 0.28);
+      ctx.beginPath();
+      ctx.moveTo(-hw + 0.04, -hd + 0.72);
+      ctx.lineTo(hw - 0.04, -hd + 0.72);
+      ctx.stroke();
+    } else if (item.kind === 'kitchen_sink') {
+      ctx.strokeRect(-hw + 0.15, -hd + 0.08, 0.65, item.depth - 0.16);
+    } else if (item.kind === 'dining_set') {
+      // Subtle chairs
+      const cw = 0.38;
+      [-hw * 0.45, hw * 0.45].forEach((cx) => {
+        ctx.strokeRect(cx - cw / 2, -hd - 0.14, cw, 0.12);
+        ctx.strokeRect(cx - cw / 2, hd + 0.02, cw, 0.12);
+      });
+    } else if (item.kind === 'bathtub') {
+      ctx.beginPath();
+      ctx.roundRect(-hw + 0.08, -hd + 0.08, item.width - 0.16, item.depth - 0.16, 0.12);
+      ctx.stroke();
+    } else if (item.kind === 'toilet') {
+      ctx.strokeRect(-hw + 0.04, -hd + 0.04, item.width - 0.08, 0.16);
+      ctx.beginPath();
+      ctx.ellipse(0, 0.1, hw * 0.72, hd * 0.55, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Fit label strictly INSIDE the object along its longer axis (never overflowing!)
+    const longDim = Math.max(item.width, item.depth);
+    const shortDim = Math.min(item.width, item.depth);
+    if (longDim * zoom >= 48 && shortDim * zoom >= 18) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(-hw + 0.04, -hd + 0.04, Math.max(0.05, item.width - 0.08), Math.max(0.05, item.depth - 0.08));
+      ctx.clip();
+
+      if (item.depth > item.width * 1.25) {
+        ctx.rotate(-Math.PI / 2);
+      }
+
+      const maxTextW = (Math.max(item.width, item.depth) - 0.14) * zoom;
+      let pxFont = Math.min(11, Math.max(8.5, shortDim * zoom * 0.32));
+      ctx.font = `600 ${pxFont / zoom}px Inter, Pretendard, sans-serif`;
+      let label = item.name;
+      while (ctx.measureText(label).width * zoom > maxTextW && pxFont > 7.5) {
+        pxFont -= 0.5;
+        ctx.font = `600 ${pxFont / zoom}px Inter, Pretendard, sans-serif`;
+      }
+      if (ctx.measureText(label).width * zoom > maxTextW) {
+        while (label.length > 2 && ctx.measureText(`${label}…`).width * zoom > maxTextW) {
+          label = label.slice(0, -1);
+        }
+        label = `${label}…`;
+      }
+
+      ctx.fillStyle = isSel ? '#1D4ED8' : '#475569';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, 0, item.kind === 'bed_queen' ? 0.18 : 0);
+      ctx.restore();
+    }
+  }
+
+  ctx.restore();
+}
 
 export const Viewport2D: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -48,6 +211,7 @@ export const Viewport2D: React.FC = () => {
   const [cam, setCam] = useState<Camera2D>({ x: 6.1, y: 4.7, zoom: 55 });
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [hoverWorld, setHoverWorld] = useState<{ x: number; y: number } | null>(null);
+  const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
   const [alignGuides, setAlignGuides] = useState<{ x?: number; y?: number }>({});
   const dragRef = useRef<DragState>({ kind: 'none' });
   const underlayImgRef = useRef<HTMLImageElement | null>(null);
@@ -146,7 +310,7 @@ export const Viewport2D: React.FC = () => {
       ctx.save();
       ctx.scale(dpr, dpr);
 
-      ctx.fillStyle = '#F8FAFC';
+      ctx.fillStyle = '#FAF9F6';
       ctx.fillRect(0, 0, w, h);
 
       ctx.translate(w / 2, h / 2);
@@ -165,7 +329,7 @@ export const Viewport2D: React.FC = () => {
       ctx.lineWidth = 1 / cam.zoom;
       for (let gx = startX; gx <= viewRight; gx += stepMinor) {
         const isMajor = Math.abs(gx - Math.round(gx)) < 0.001;
-        ctx.strokeStyle = isMajor ? '#E2E8F0' : '#F1F5F9';
+        ctx.strokeStyle = isMajor ? '#EAE6DF' : '#F4F1EC';
         ctx.beginPath();
         ctx.moveTo(gx, viewTop);
         ctx.lineTo(gx, viewBottom);
@@ -173,7 +337,7 @@ export const Viewport2D: React.FC = () => {
       }
       for (let gy = startY; gy <= viewBottom; gy += stepMinor) {
         const isMajor = Math.abs(gy - Math.round(gy)) < 0.001;
-        ctx.strokeStyle = isMajor ? '#E2E8F0' : '#F1F5F9';
+        ctx.strokeStyle = isMajor ? '#EAE6DF' : '#F4F1EC';
         ctx.beginPath();
         ctx.moveTo(viewLeft, gy);
         ctx.lineTo(viewRight, gy);
@@ -190,6 +354,7 @@ export const Viewport2D: React.FC = () => {
         ctx.restore();
       }
 
+      // Rooms with soft material tint
       for (const room of rooms) {
         if (room.polygon.length < 3) continue;
         const mat = getMat(room.floorMaterialId);
@@ -202,19 +367,27 @@ export const Viewport2D: React.FC = () => {
         });
         ctx.closePath();
         ctx.fillStyle = mat.color;
-        ctx.globalAlpha = isSel ? 0.55 : 0.34;
+        ctx.globalAlpha = isSel ? 0.62 : 0.4;
         ctx.fill();
         ctx.globalAlpha = 1;
         if (isSel) {
           ctx.strokeStyle = '#2563EB';
-          ctx.lineWidth = 3 / cam.zoom;
+          ctx.lineWidth = 2.5 / cam.zoom;
           ctx.stroke();
         }
         ctx.restore();
       }
 
+      // Scene items
+      for (const item of project.items) {
+        const isSel = selection?.kind === 'item' && selection.id === item.id;
+        const isHov = hoveredItemId === item.id;
+        drawItemSymbol2D(ctx, item, isSel, isHov, cam.zoom);
+      }
+
       const nodeMap = new Map(project.nodes.map((n) => [n.id, n]));
 
+      // Walls (soft slate architectural style)
       for (const wall of project.walls) {
         const a = nodeMap.get(wall.startId);
         const b = nodeMap.get(wall.endId);
@@ -235,18 +408,15 @@ export const Viewport2D: React.FC = () => {
         ctx.lineTo(b.x - nx * ht, b.y - ny * ht);
         ctx.lineTo(a.x - nx * ht, a.y - ny * ht);
         ctx.closePath();
-        ctx.fillStyle = isSel ? '#2563EB' : '#1E293B';
+        ctx.fillStyle = isSel ? '#2563EB' : '#334155';
         ctx.fill();
-        ctx.strokeStyle = isSel ? '#1D4ED8' : '#0F172A';
-        ctx.lineWidth = 1.2 / cam.zoom;
-        ctx.stroke();
 
-        if (len >= 0.6) {
-          const mx = (a.x + b.x) / 2 + nx * (ht + 0.18);
-          const my = (a.y + b.y) / 2 + ny * (ht + 0.18);
+        if (len >= 0.8) {
+          const mx = (a.x + b.x) / 2 + nx * (ht + 0.2);
+          const my = (a.y + b.y) / 2 + ny * (ht + 0.2);
           const fontSize = Math.max(9 / cam.zoom, 0.11);
           ctx.font = `600 ${fontSize}px Inter, Pretendard, sans-serif`;
-          ctx.fillStyle = isSel ? '#2563EB' : '#475569';
+          ctx.fillStyle = isSel ? '#2563EB' : '#64748B';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText(`${Math.round(len * 1000)}`, mx, my);
@@ -254,6 +424,7 @@ export const Viewport2D: React.FC = () => {
         ctx.restore();
       }
 
+      // Openings
       for (const op of project.openings) {
         const wObj = project.walls.find((w) => w.id === op.wallId);
         if (!wObj) continue;
@@ -281,7 +452,7 @@ export const Viewport2D: React.FC = () => {
         ctx.lineTo(cx + ux * hw - nx * ht, cy + uy * hw - ny * ht);
         ctx.lineTo(cx - ux * hw - nx * ht, cy - uy * hw - ny * ht);
         ctx.closePath();
-        ctx.fillStyle = '#FFFFFF';
+        ctx.fillStyle = '#FAF9F6';
         ctx.fill();
 
         const angle = Math.atan2(dy, dx);
@@ -290,7 +461,7 @@ export const Viewport2D: React.FC = () => {
 
         if (op.kind === 'window') {
           ctx.strokeStyle = isSel ? '#2563EB' : '#0284C7';
-          ctx.lineWidth = 2.2 / cam.zoom;
+          ctx.lineWidth = 2 / cam.zoom;
           ctx.strokeRect(-hw, -wObj.thickness / 2, op.width, wObj.thickness);
           ctx.beginPath();
           ctx.moveTo(-hw, 0);
@@ -298,17 +469,17 @@ export const Viewport2D: React.FC = () => {
           ctx.stroke();
         } else if (op.kind === 'sliding_glass') {
           ctx.strokeStyle = isSel ? '#2563EB' : '#0F766E';
-          ctx.lineWidth = 2.4 / cam.zoom;
+          ctx.lineWidth = 2.2 / cam.zoom;
           ctx.strokeRect(-hw, -wObj.thickness / 2, op.width, wObj.thickness);
           ctx.beginPath();
-          ctx.moveTo(-hw, -0.025);
-          ctx.lineTo(0.12, -0.025);
-          ctx.moveTo(-0.12, 0.025);
-          ctx.lineTo(hw, 0.025);
+          ctx.moveTo(-hw, -0.02);
+          ctx.lineTo(0.12, -0.02);
+          ctx.moveTo(-0.12, 0.02);
+          ctx.lineTo(hw, 0.02);
           ctx.stroke();
         } else {
           ctx.strokeStyle = isSel ? '#2563EB' : '#B45309';
-          ctx.lineWidth = 2 / cam.zoom;
+          ctx.lineWidth = 1.8 / cam.zoom;
           ctx.beginPath();
           ctx.moveTo(-hw, 0);
           ctx.lineTo(-hw, op.width);
@@ -322,76 +493,74 @@ export const Viewport2D: React.FC = () => {
         ctx.restore();
       }
 
+      // Room pill badges (always readable, clean background)
       for (const room of rooms) {
         const py = (room.areaSqm / 3.3058).toFixed(1);
+        const titleSize = Math.max(10.5 / cam.zoom, 0.14);
+        const subSize = Math.max(8.5 / cam.zoom, 0.11);
         ctx.save();
+        ctx.font = `700 ${titleSize}px Inter, Pretendard, sans-serif`;
+        const w1 = ctx.measureText(room.name).width;
+        ctx.font = `500 ${subSize}px Inter, Pretendard, sans-serif`;
+        const subText = `${room.areaSqm.toFixed(1)}㎡ (${py}평)`;
+        const w2 = ctx.measureText(subText).width;
+        const bw = Math.max(w1, w2) + 0.34;
+        const bh = titleSize + subSize + 0.24;
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.86)';
+        ctx.strokeStyle = 'rgba(203, 213, 225, 0.9)';
+        ctx.lineWidth = 1 / cam.zoom;
+        ctx.beginPath();
+        ctx.roundRect(room.centroid.x - bw / 2, room.centroid.y - bh / 2, bw, bh, 0.1);
+        ctx.fill();
+        ctx.stroke();
+
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        const titleSize = Math.max(11 / cam.zoom, 0.175);
-        const subSize = Math.max(9 / cam.zoom, 0.13);
         ctx.font = `700 ${titleSize}px Inter, Pretendard, sans-serif`;
-        ctx.fillStyle = '#0F172A';
-        ctx.fillText(room.name, room.centroid.x, room.centroid.y - titleSize * 0.55);
+        ctx.fillStyle = '#1E293B';
+        ctx.fillText(room.name, room.centroid.x, room.centroid.y - subSize * 0.65);
         ctx.font = `500 ${subSize}px Inter, Pretendard, sans-serif`;
-        ctx.fillStyle = '#475569';
-        ctx.fillText(`${room.areaSqm.toFixed(1)}㎡ (${py}평)`, room.centroid.x, room.centroid.y + subSize * 0.75);
+        ctx.fillStyle = '#64748B';
+        ctx.fillText(subText, room.centroid.x, room.centroid.y + titleSize * 0.72);
         ctx.restore();
       }
 
-      for (const item of project.items) {
-        const isSel = selection?.kind === 'item' && selection.id === item.id;
-        ctx.save();
-        ctx.translate(item.x, item.y);
-        ctx.rotate(item.rotation);
-
-        const isRound = item.kind === 'downlight' || item.kind === 'ceiling_fan' || item.kind === 'rug_round';
-        ctx.fillStyle =
-          item.kind === 'downlight'
-            ? '#FEF08A'
-            : item.kind === 'ceiling_fan'
-              ? '#E0F2FE'
-              : item.kind === 'outlet_2' || item.kind === 'switch_2'
-                ? '#FDE68A'
-                : '#FFFFFF';
-        ctx.strokeStyle = isSel ? '#2563EB' : '#334155';
-        ctx.lineWidth = (isSel ? 2.5 : 1.4) / cam.zoom;
-
-        if (isRound) {
-          ctx.beginPath();
-          ctx.arc(0, 0, Math.max(item.width / 2, 0.08), 0, Math.PI * 2);
-          ctx.fill();
-          ctx.stroke();
-        } else {
-          ctx.fillRect(-item.width / 2, -item.depth / 2, item.width, item.depth);
-          ctx.strokeRect(-item.width / 2, -item.depth / 2, item.width, item.depth);
-          ctx.beginPath();
-          ctx.moveTo(-item.width * 0.15, item.depth / 2);
-          ctx.lineTo(0, item.depth / 2 + 0.08);
-          ctx.lineTo(item.width * 0.15, item.depth / 2);
-          ctx.stroke();
-        }
-
-        if (item.width >= 0.35 || isSel) {
-          const fs = Math.max(9 / cam.zoom, 0.11);
-          ctx.font = `600 ${fs}px Inter, Pretendard, sans-serif`;
-          ctx.fillStyle = isSel ? '#1D4ED8' : '#334155';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(item.name, 0, 0);
-        }
-        ctx.restore();
-      }
-
+      // Subtle corner handles
       for (const n of project.nodes) {
         ctx.save();
         ctx.beginPath();
-        ctx.arc(n.x, n.y, 0.075, 0, Math.PI * 2);
+        ctx.arc(n.x, n.y, 0.055, 0, Math.PI * 2);
         ctx.fillStyle = '#FFFFFF';
         ctx.fill();
-        ctx.strokeStyle = '#334155';
-        ctx.lineWidth = 1.6 / cam.zoom;
+        ctx.strokeStyle = '#64748B';
+        ctx.lineWidth = 1.2 / cam.zoom;
         ctx.stroke();
         ctx.restore();
+      }
+
+      // Floating pill label ONLY above hovered or selected item (so small/dense fixtures never clutter!)
+      const activeItemId = selection?.kind === 'item' ? selection.id : hoveredItemId;
+      if (activeItemId) {
+        const it = project.items.find((x) => x.id === activeItemId);
+        if (it) {
+          ctx.save();
+          const fs = 11 / cam.zoom;
+          ctx.font = `600 ${fs}px Inter, Pretendard, sans-serif`;
+          const tw = ctx.measureText(it.name).width;
+          const pw = tw + 14 / cam.zoom;
+          const ph = 20 / cam.zoom;
+          const ly = it.y - Math.max(it.depth, it.width) / 2 - ph / 2 - 8 / cam.zoom;
+          ctx.fillStyle = selection?.kind === 'item' && selection.id === it.id ? '#2563EB' : '#0F172A';
+          ctx.beginPath();
+          ctx.roundRect(it.x - pw / 2, ly - ph / 2, pw, ph, 6 / cam.zoom);
+          ctx.fill();
+          ctx.fillStyle = '#FFFFFF';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(it.name, it.x, ly);
+          ctx.restore();
+        }
       }
 
       if (alignGuides.x !== undefined || alignGuides.y !== undefined) {
@@ -462,7 +631,7 @@ export const Viewport2D: React.FC = () => {
     };
 
     render();
-  }, [cam, project, rooms, selection, tool, hoverWorld, alignGuides, underlayOpacity]);
+  }, [cam, project, rooms, selection, tool, hoverWorld, hoveredItemId, alignGuides, underlayOpacity]);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -624,7 +793,21 @@ export const Viewport2D: React.FC = () => {
       const sn = snapPoint(world.x, world.y);
       setAlignGuides({ x: sn.gx, y: sn.gy });
       dragRef.current = { ...drag, curX: sn.x, curY: sn.y };
+      return;
     }
+
+    // Hover detection for floating pill label
+    let foundHover: string | null = null;
+    for (let i = project.items.length - 1; i >= 0; i--) {
+      const it = project.items[i];
+      const hw = Math.max(it.width / 2, 0.16);
+      const hd = Math.max(it.depth / 2, 0.16);
+      if (Math.abs(world.x - it.x) <= hw && Math.abs(world.y - it.y) <= hd) {
+        foundHover = it.id;
+        break;
+      }
+    }
+    setHoveredItemId(foundHover);
   };
 
   const handlePointerUp = () => {
@@ -650,7 +833,7 @@ export const Viewport2D: React.FC = () => {
   };
 
   return (
-    <div ref={containerRef} className="relative w-full h-full bg-slate-50 select-none overflow-hidden">
+    <div ref={containerRef} className="relative w-full h-full bg-[#FAF9F6] select-none overflow-hidden">
       <canvas
         ref={canvasRef}
         onPointerDown={handlePointerDown}
@@ -662,10 +845,10 @@ export const Viewport2D: React.FC = () => {
       />
 
       <div className="absolute top-3 left-3 flex items-center gap-2 bg-white/95 backdrop-blur border border-slate-200 rounded-lg px-3 py-1.5 shadow-sm text-xs text-slate-600">
-        <span className="font-semibold text-slate-800">2D CAD 평면</span>
+        <span className="font-semibold text-slate-800">2D 평면도</span>
         <span className="text-slate-300">|</span>
         <span>
-          {tool === 'select' && '꼭짓점 드래그로 방 크기 실시간 변경 · 우클릭 드래그 이동'}
+          {tool === 'select' && '코너 드래그로 방 크기 변경 · 마우스 올리면 이름 표시'}
           {tool === 'draw_wall' && '드래그하여 벽체 그리기 (자동 코너 스냅)'}
           {tool === 'draw_room_box' && '드래그하여 사각형 방 생성'}
           {(tool === 'add_door' || tool === 'add_window' || tool === 'add_sliding') &&
