@@ -3,6 +3,7 @@ import {
   ComputedRoom,
   FloorProject,
   MaterialItem,
+  MaterialKind,
   PlannerTool,
   PropKind,
   SceneItem,
@@ -44,6 +45,8 @@ export interface PlannerState {
   tool: PlannerTool;
   pendingPropKind: PropKind;
   selection: SelectionTarget;
+  sidebarTab: 'build' | 'props' | 'materials';
+  materialFilter: MaterialKind | 'all';
   viewMode: ViewMode;
   showCeiling: boolean;
   underlayUrl: string | null;
@@ -54,6 +57,8 @@ export interface PlannerState {
   snapshotTrigger: number;
 
   setTool: (tool: PlannerTool, propKind?: PropKind) => void;
+  setSidebarTab: (tab: 'build' | 'props' | 'materials') => void;
+  setMaterialFilter: (kind: MaterialKind | 'all') => void;
   setViewMode: (mode: ViewMode) => void;
   setShowCeiling: (show: boolean) => void;
   setSelection: (sel: SelectionTarget) => void;
@@ -100,6 +105,8 @@ export const usePlannerStore = create<PlannerState>((set, get) => ({
   tool: 'select',
   pendingPropKind: 'sofa_modular',
   selection: null,
+  sidebarTab: 'materials',
+  materialFilter: 'all',
   viewMode: 'split',
   showCeiling: false,
   underlayUrl: null,
@@ -115,9 +122,40 @@ export const usePlannerStore = create<PlannerState>((set, get) => ({
       pendingPropKind: propKind ?? s.pendingPropKind,
     })),
 
+  setSidebarTab: (sidebarTab) => set({ sidebarTab }),
+  setMaterialFilter: (materialFilter) => set({ materialFilter }),
   setViewMode: (viewMode) => set({ viewMode }),
   setShowCeiling: (showCeiling) => set({ showCeiling }),
-  setSelection: (selection) => set({ selection }),
+  setSelection: (selection) =>
+    set((s) => {
+      if (!selection) return { selection };
+      let nextFilter: MaterialKind | 'all' = s.materialFilter;
+      if (selection.kind === 'wall') {
+        nextFilter = 'wall';
+      } else if (selection.kind === 'room') {
+        const rm = s.rooms.find((r) => r.key === selection.key);
+        const curMat = getMat(rm?.floorMaterialId);
+        nextFilter = curMat.kind === 'tile' ? 'tile' : 'floor';
+      } else if (selection.kind === 'opening') {
+        nextFilter = 'film';
+      } else if (selection.kind === 'item') {
+        const it = s.project.items.find((x) => x.id === selection.id);
+        if (it) {
+          if (it.kind === 'ceiling_fan' || it.kind === 'downlight') nextFilter = 'lighting';
+          else if (it.kind === 'outlet_2' || it.kind === 'switch_2' || it.kind === 'wallpad') nextFilter = 'electrical';
+          else if (it.kind === 'fridge_4door' || it.kind === 'induction_3' || it.kind === 'aircon_stand' || it.kind === 'wall_tv')
+            nextFilter = 'appliance';
+          else if (it.kind === 'dining_set' || it.kind === 'desk_set') nextFilter = 'floor';
+          else if (it.kind === 'sofa_modular' || it.kind === 'bed_queen' || it.kind === 'rug_round') nextFilter = 'wall';
+          else nextFilter = 'film';
+        }
+      }
+      return {
+        selection,
+        sidebarTab: 'materials',
+        materialFilter: nextFilter,
+      };
+    }),
   setUnderlay: (underlayUrl, opacity) =>
     set((s) => ({
       underlayUrl,

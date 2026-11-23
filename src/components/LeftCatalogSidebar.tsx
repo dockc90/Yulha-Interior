@@ -76,8 +76,10 @@ const MAT_TABS: { kind: MaterialKind | 'all'; label: string }[] = [
 ];
 
 export const LeftCatalogSidebar: React.FC<LeftCatalogSidebarProps> = ({ onOpenUnderlayModal }) => {
-  const [tab, setTab] = useState<'build' | 'props' | 'materials'>('materials');
-  const [matKind, setMatKind] = useState<MaterialKind | 'all'>('all');
+  const tab = usePlannerStore((s) => s.sidebarTab);
+  const setTab = usePlannerStore((s) => s.setSidebarTab);
+  const matKind = usePlannerStore((s) => s.materialFilter);
+  const setMatKind = usePlannerStore((s) => s.setMaterialFilter);
   const [brandFilter, setBrandFilter] = useState<string>('전체');
   const [search, setSearch] = useState('');
 

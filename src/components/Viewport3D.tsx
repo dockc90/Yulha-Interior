@@ -24,14 +24,18 @@ function makePbrMat(
     color: isSelected ? '#93C5FD' : '#FFFFFF',
     map,
     bumpMap,
-    bumpScale: bumpMap ? 0.008 : 0,
+    bumpScale: bumpMap ? 0.01 : 0,
     roughness: item.roughness,
     metalness: item.metalness,
     ...extra,
   });
 }
 
-function buildPropMesh(item: SceneItem, isSelected: boolean): THREE.Group {
+function buildPropMesh(
+  item: SceneItem,
+  isSelected: boolean,
+  fanBladesOut: THREE.Object3D[],
+): THREE.Group {
   const group = new THREE.Group();
   const matItem = getMat(item.materialId);
   const w = item.width * MM_TO_M;
@@ -42,16 +46,25 @@ function buildPropMesh(item: SceneItem, isSelected: boolean): THREE.Group {
   const baseMat = makePbrMat(matItem, 1, 1, isSelected);
   const darkMat = new THREE.MeshStandardMaterial({
     color: isSelected ? '#60A5FA' : '#1E293B',
-    roughness: 0.4,
-    metalness: 0.35,
+    roughness: 0.35,
+    metalness: 0.45,
+  });
+  const chromeMat = new THREE.MeshStandardMaterial({
+    color: '#E2E8F0',
+    roughness: 0.15,
+    metalness: 0.88,
   });
   const whiteMat = new THREE.MeshStandardMaterial({
     color: isSelected ? '#BFDBFE' : '#F8FAFC',
     roughness: 0.35,
   });
+  const accentPillowMat = new THREE.MeshStandardMaterial({
+    color: '#8C9B8E',
+    roughness: 0.85,
+  });
   const oakMat = new THREE.MeshStandardMaterial({
     color: isSelected ? '#93C5FD' : '#C8A57B',
-    roughness: 0.55,
+    roughness: 0.5,
   });
 
   const addBox = (
@@ -73,49 +86,85 @@ function buildPropMesh(item: SceneItem, isSelected: boolean): THREE.Group {
 
   switch (item.kind) {
     case 'sofa_modular': {
-      addBox(w, h * 0.42, d, 0, h * 0.21, 0, baseMat);
-      addBox(w, h * 0.55, d * 0.22, 0, h * 0.65, -d * 0.39, baseMat);
-      addBox(w * 0.1, h * 0.62, d, -w * 0.45, h * 0.31, 0, baseMat);
-      addBox(w * 0.1, h * 0.62, d, w * 0.45, h * 0.31, 0, baseMat);
+      // Base frame + legs
+      addBox(w * 0.96, 0.06, d * 0.92, 0, 0.09, 0, oakMat);
+      [
+        [-w * 0.44, -d * 0.4],
+        [w * 0.44, -d * 0.4],
+        [-w * 0.44, d * 0.4],
+        [w * 0.44, d * 0.4],
+      ].forEach(([lx, lz]) => addBox(0.04, 0.06, 0.04, lx, 0.03, lz, darkMat));
+
+      // Seat cushions (3 modules)
+      const seats = 3;
+      const sw = (w - 0.18) / seats;
+      for (let i = 0; i < seats; i++) {
+        const sx = -w / 2 + 0.09 + sw * (i + 0.5);
+        addBox(sw - 0.02, h * 0.34, d * 0.88, sx, 0.12 + h * 0.17, d * 0.04, baseMat);
+      }
+      // Backrest & armrests
+      addBox(w, h * 0.56, d * 0.22, 0, 0.12 + h * 0.42, -d * 0.38, baseMat);
+      addBox(0.14, h * 0.52, d * 0.94, -w / 2 + 0.07, 0.12 + h * 0.26, 0, baseMat);
+      addBox(0.14, h * 0.52, d * 0.94, w / 2 - 0.07, 0.12 + h * 0.26, 0, baseMat);
+      // Throw pillows
+      addBox(0.38, 0.32, 0.12, -w * 0.32, 0.12 + h * 0.42, -d * 0.2, accentPillowMat).rotation.x = -0.25;
+      addBox(0.38, 0.32, 0.12, w * 0.32, 0.12 + h * 0.42, -d * 0.2, accentPillowMat).rotation.x = -0.25;
       break;
     }
     case 'coffee_table': {
-      addBox(w, 0.04, d, 0, h - 0.02, 0, baseMat);
-      addBox(w * 0.7, h - 0.04, d * 0.6, 0, (h - 0.04) / 2, 0, darkMat);
+      addBox(w, 0.032, d, 0, h - 0.016, 0, baseMat);
+      [
+        [-w * 0.42, -d * 0.38],
+        [w * 0.42, -d * 0.38],
+        [-w * 0.42, d * 0.38],
+        [w * 0.42, d * 0.38],
+      ].forEach(([lx, lz]) => addBox(0.03, h - 0.032, 0.03, lx, (h - 0.032) / 2, lz, darkMat));
+      // Decorative tray
+      addBox(0.32, 0.02, 0.22, 0.1, h + 0.01, 0, oakMat);
       break;
     }
     case 'rug_round': {
-      const rug = new THREE.Mesh(new THREE.CylinderGeometry(w / 2, w / 2, h, 40), baseMat);
+      const rug = new THREE.Mesh(new THREE.CylinderGeometry(w / 2, w / 2, h, 48), baseMat);
       rug.position.set(0, h / 2, 0);
       rug.receiveShadow = true;
       group.add(rug);
       break;
     }
     case 'wall_tv': {
-      addBox(w + 0.03, h + 0.03, d * 0.6, 0, elev + h / 2, -d * 0.2, darkMat);
+      addBox(w + 0.024, h + 0.024, 0.028, 0, elev + h / 2, -0.01, darkMat);
       const screenMat = new THREE.MeshStandardMaterial({
         map: createTvTexture(),
-        roughness: 0.15,
-        metalness: 0.1,
-        emissive: new THREE.Color('#111827'),
-        emissiveIntensity: 0.25,
+        roughness: 0.12,
+        metalness: 0.12,
+        emissive: new THREE.Color('#1E293B'),
+        emissiveIntensity: 0.28,
       });
-      addBox(w, h, 0.015, 0, elev + h / 2, d * 0.15, screenMat);
+      addBox(w, h, 0.012, 0, elev + h / 2, 0.01, screenMat);
       break;
     }
     case 'aircon_stand': {
       addBox(w, h, d, 0, h / 2, 0, baseMat);
-      addBox(w * 0.72, h * 0.35, 0.02, 0, h * 0.7, d * 0.51, whiteMat);
+      addBox(w * 0.78, h * 0.36, 0.016, 0, h * 0.68, d * 0.505, whiteMat);
       break;
     }
     case 'island_counter': {
-      addBox(w, h - 0.04, d * 0.92, 0, (h - 0.04) / 2, 0, whiteMat);
-      addBox(w + 0.04, 0.04, d, 0, h - 0.02, 0, baseMat);
+      // Waterfall stone top & sides
+      addBox(w - 0.06, h - 0.04, d * 0.9, 0, (h - 0.04) / 2, 0, baseMat);
+      addBox(w, 0.04, d, 0, h - 0.02, 0, whiteMat);
+      addBox(0.04, h, d, -w / 2 + 0.02, h / 2, 0, whiteMat);
+      addBox(0.04, h, d, w / 2 - 0.02, h / 2, 0, whiteMat);
+      // Warm toe-kick LED strip
+      const ledMat = new THREE.MeshStandardMaterial({
+        color: '#FFFBEB',
+        emissive: new THREE.Color('#FDE68A'),
+        emissiveIntensity: 1.4,
+      });
+      addBox(w - 0.12, 0.02, 0.02, 0, 0.04, d * 0.44, ledMat);
       break;
     }
     case 'dining_set':
     case 'desk_set': {
-      addBox(w, 0.045, d, 0, h - 0.0225, 0, baseMat);
+      addBox(w, 0.042, d, 0, h - 0.021, 0, baseMat);
       const lx = w * 0.42;
       const lz = d * 0.38;
       [
@@ -123,7 +172,19 @@ function buildPropMesh(item: SceneItem, isSelected: boolean): THREE.Group {
         [lx, -lz],
         [-lx, lz],
         [lx, lz],
-      ].forEach(([px, pz]) => addBox(0.06, h - 0.045, 0.06, px, (h - 0.045) / 2, pz, oakMat));
+      ].forEach(([px, pz]) => addBox(0.055, h - 0.042, 0.055, px, (h - 0.042) / 2, pz, oakMat));
+      if (item.kind === 'dining_set') {
+        [-w * 0.25, w * 0.25].forEach((cx) => {
+          [-d * 0.62, d * 0.62].forEach((cz) => {
+            addBox(0.42, 0.04, 0.4, cx, 0.45, cz, baseMat);
+            addBox(0.42, 0.36, 0.04, cx, 0.65, cz + (cz > 0 ? 0.18 : -0.18), baseMat);
+            addBox(0.035, 0.44, 0.035, cx - 0.16, 0.22, cz - 0.15, oakMat);
+            addBox(0.035, 0.44, 0.035, cx + 0.16, 0.22, cz - 0.15, oakMat);
+            addBox(0.035, 0.44, 0.035, cx - 0.16, 0.22, cz + 0.15, oakMat);
+            addBox(0.035, 0.44, 0.035, cx + 0.16, 0.22, cz + 0.15, oakMat);
+          });
+        });
+      }
       break;
     }
     case 'fridge_4door': {
@@ -133,11 +194,13 @@ function buildPropMesh(item: SceneItem, isSelected: boolean): THREE.Group {
       addBox(pw, h * 0.56, 0.025, w * 0.248, h * 0.71, d * 0.505, baseMat);
       addBox(pw, h * 0.39, 0.025, -w * 0.248, h * 0.205, d * 0.505, baseMat);
       addBox(pw, h * 0.39, 0.025, w * 0.248, h * 0.205, d * 0.505, baseMat);
+      // Recessed handle trim
+      addBox(w * 0.96, 0.015, 0.01, 0, h * 0.42, d * 0.515, darkMat);
       break;
     }
     case 'induction_3': {
       addBox(w, h, d, 0, elev + h / 2, 0, darkMat);
-      const ringMat = new THREE.MeshStandardMaterial({ color: '#94A3B8', roughness: 0.2 });
+      const ringMat = new THREE.MeshStandardMaterial({ color: '#CBD5E1', roughness: 0.2 });
       [-w * 0.25, 0.02, w * 0.27].forEach((rx, idx) => {
         const ring = new THREE.Mesh(
           new THREE.RingGeometry(idx === 1 ? 0.08 : 0.06, idx === 1 ? 0.095 : 0.072, 24),
@@ -152,7 +215,18 @@ function buildPropMesh(item: SceneItem, isSelected: boolean): THREE.Group {
     case 'kitchen_sink': {
       addBox(w, h - 0.04, d, 0, (h - 0.04) / 2, 0, baseMat);
       addBox(w + 0.02, 0.04, d + 0.02, 0, h - 0.02, 0, whiteMat);
-      addBox(0.65, 0.02, 0.45, -w * 0.22, h + 0.005, 0, darkMat);
+      // Stainless sink basin & gooseneck faucet
+      addBox(0.7, 0.015, 0.46, -w * 0.22, h + 0.005, 0, chromeMat);
+      addBox(0.03, 0.28, 0.03, -w * 0.22, h + 0.14, -d * 0.34, chromeMat);
+      addBox(0.03, 0.03, 0.16, -w * 0.22, h + 0.28, -d * 0.27, chromeMat);
+      // Upper cabinets
+      addBox(w, 0.72, 0.36, 0, 1.85, -d * 0.22, baseMat);
+      const ledMat = new THREE.MeshStandardMaterial({
+        color: '#FFFBEB',
+        emissive: new THREE.Color('#FDE68A'),
+        emissiveIntensity: 1.5,
+      });
+      addBox(w - 0.1, 0.015, 0.02, 0, 1.48, -d * 0.22, ledMat);
       break;
     }
     case 'tall_homebar':
@@ -166,23 +240,28 @@ function buildPropMesh(item: SceneItem, isSelected: boolean): THREE.Group {
       break;
     }
     case 'bed_queen': {
-      addBox(w, 0.28, d, 0, 0.14, 0, oakMat);
-      addBox(w * 0.92, 0.24, d * 0.88, 0, 0.4, d * 0.04, whiteMat);
-      addBox(w * 1.04, h, 0.12, 0, h / 2, -d * 0.47, baseMat);
-      addBox(w * 0.34, 0.12, 0.38, -w * 0.22, 0.58, -d * 0.3, whiteMat);
-      addBox(w * 0.34, 0.12, 0.38, w * 0.22, 0.58, -d * 0.3, whiteMat);
+      addBox(w, 0.26, d, 0, 0.13, 0, oakMat);
+      addBox(w * 0.92, 0.22, d * 0.88, 0, 0.37, d * 0.04, whiteMat);
+      // Folded duvet blanket
+      addBox(w * 0.94, 0.24, d * 0.56, 0, 0.38, d * 0.18, baseMat);
+      // Upholstered headboard
+      addBox(w * 1.06, Math.max(h, 1.05), 0.12, 0, Math.max(h, 1.05) / 2, -d * 0.47, baseMat);
+      // Pillows
+      addBox(w * 0.34, 0.12, 0.38, -w * 0.22, 0.54, -d * 0.3, whiteMat);
+      addBox(w * 0.34, 0.12, 0.38, w * 0.22, 0.54, -d * 0.3, whiteMat);
       break;
     }
     case 'bathtub': {
       addBox(w, h, d, 0, h / 2, 0, whiteMat);
-      addBox(w * 0.88, 0.04, d * 0.8, 0, h + 0.01, 0, new THREE.MeshStandardMaterial({ color: '#E0F2FE' }));
+      addBox(w * 0.88, 0.04, d * 0.8, 0, h + 0.01, 0, new THREE.MeshStandardMaterial({ color: '#E0F2FE', roughness: 0.15 }));
       break;
     }
     case 'vanity': {
       addBox(w, h * 0.72, d, 0, h * 0.36, 0, baseMat);
       addBox(w + 0.02, 0.05, d + 0.02, 0, h * 0.745, 0, whiteMat);
-      const mirrorMat = new THREE.MeshStandardMaterial({ color: '#E2E8F0', metalness: 0.9, roughness: 0.08 });
-      addBox(w * 0.85, 0.75, 0.02, 0, h + 0.52, -d * 0.45, mirrorMat);
+      addBox(0.025, 0.16, 0.025, 0, h + 0.08, -d * 0.32, chromeMat);
+      const mirrorMat = new THREE.MeshStandardMaterial({ color: '#E2E8F0', metalness: 0.92, roughness: 0.06 });
+      addBox(w * 0.85, 0.75, 0.02, 0, h + 0.54, -d * 0.45, mirrorMat);
       break;
     }
     case 'toilet': {
@@ -194,7 +273,7 @@ function buildPropMesh(item: SceneItem, isSelected: boolean): THREE.Group {
       const glassMat = new THREE.MeshStandardMaterial({
         color: '#E0F2FE',
         transparent: true,
-        opacity: 0.32,
+        opacity: 0.3,
         roughness: 0.08,
       });
       addBox(0.03, h, d, -w / 2, h / 2, 0, glassMat);
@@ -205,17 +284,20 @@ function buildPropMesh(item: SceneItem, isSelected: boolean): THREE.Group {
       const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.18, 24), darkMat);
       hub.position.set(0, elev + h * 0.6, 0);
       group.add(hub);
+      const spinner = new THREE.Group();
+      spinner.position.set(0, elev + h * 0.45, 0);
       for (let i = 0; i < 3; i++) {
         const bladePivot = new THREE.Group();
-        bladePivot.position.set(0, elev + h * 0.45, 0);
         bladePivot.rotation.y = (i * Math.PI * 2) / 3;
         const blade = new THREE.Mesh(new THREE.BoxGeometry(w * 0.46, 0.018, 0.14), baseMat);
         blade.position.x = w * 0.24;
         blade.rotation.x = 0.15;
         blade.castShadow = true;
         bladePivot.add(blade);
-        group.add(bladePivot);
+        spinner.add(bladePivot);
       }
+      group.add(spinner);
+      fanBladesOut.push(spinner);
       break;
     }
     case 'downlight': {
@@ -226,7 +308,7 @@ function buildPropMesh(item: SceneItem, isSelected: boolean): THREE.Group {
         new THREE.MeshStandardMaterial({
           color: '#FFFBEB',
           emissive: new THREE.Color('#FEF3C7'),
-          emissiveIntensity: 1.8,
+          emissiveIntensity: 2.0,
         }),
       );
       emit.position.set(0, elev - 0.002, 0);
@@ -260,11 +342,11 @@ function buildOpeningMesh(op: WallOpening, wallThickM: number, wallHeightM: numb
   const matItem = getMat(op.frameMaterialId);
   const frameMat = makePbrMat(matItem, 1, 1, isSelected);
   const glassMat = new THREE.MeshStandardMaterial({
-    color: '#D8F3FF',
+    color: '#DFF4FF',
     transparent: true,
-    opacity: 0.36,
-    roughness: 0.08,
-    metalness: 0.1,
+    opacity: 0.32,
+    roughness: 0.06,
+    metalness: 0.15,
   });
 
   if (op.kind === 'window') {
@@ -298,7 +380,7 @@ function buildOpeningMesh(op: WallOpening, wallThickM: number, wallHeightM: numb
       g.add(p);
       const mullion = new THREE.Mesh(
         new THREE.BoxGeometry(0.025, h, 0.03),
-        new THREE.MeshStandardMaterial({ color: '#1E293B' }),
+        new THREE.MeshStandardMaterial({ color: '#1E293B', metalness: 0.4, roughness: 0.35 }),
       );
       mullion.position.set(i * pw - pw / 2, h / 2, i * 0.025);
       g.add(mullion);
@@ -336,6 +418,7 @@ function buildOpeningMesh(op: WallOpening, wallThickM: number, wallHeightM: numb
 export const Viewport3D: React.FC = () => {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const sceneGroupRef = useRef<THREE.Group | null>(null);
+  const fanSpinnersRef = useRef<THREE.Object3D[]>([]);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
@@ -369,42 +452,51 @@ export const Viewport3D: React.FC = () => {
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.05;
+    renderer.toneMappingExposure = 1.08;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color('#F1F5F9');
+    scene.background = new THREE.Color('#EBF0F5');
 
     const pmrem = new THREE.PMREMGenerator(renderer);
     scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    scene.environmentIntensity = 0.42;
+    scene.environmentIntensity = 0.55;
 
+    // Neutral studio daylight + crisp shadow tuning
     const amb = new THREE.AmbientLight(0xffffff, 0.72);
-    const hemi = new THREE.HemisphereLight(0xffffff, 0xe8e6e0, 0.68);
-    const dir = new THREE.DirectionalLight(0xffffff, 0.65);
-    dir.position.set(8, 14, 9);
+    const hemi = new THREE.HemisphereLight(0xffffff, 0xe8e4dc, 0.72);
+    const dir = new THREE.DirectionalLight(0xfffdf9, 0.75);
+    dir.position.set(9, 15, 10);
     dir.castShadow = true;
     dir.shadow.mapSize.set(2048, 2048);
+    dir.shadow.bias = -0.0004;
+    dir.shadow.normalBias = 0.018;
     dir.shadow.camera.near = 1;
-    dir.shadow.camera.far = 40;
-    dir.shadow.camera.left = -12;
-    dir.shadow.camera.right = 12;
-    dir.shadow.camera.top = 12;
-    dir.shadow.camera.bottom = -12;
+    dir.shadow.camera.far = 45;
+    dir.shadow.camera.left = -14;
+    dir.shadow.camera.right = 14;
+    dir.shadow.camera.top = 14;
+    dir.shadow.camera.bottom = -14;
     scene.add(amb, hemi, dir);
 
-    const grid = new THREE.GridHelper(30, 30, 0xcbd5e1, 0xe2e8f0);
-    grid.position.y = -0.005;
-    scene.add(grid);
+    // Architectural studio matte floor plane
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(80, 80),
+      new THREE.MeshStandardMaterial({ color: '#E5E8EC', roughness: 0.92, metalness: 0 }),
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -0.01;
+    ground.receiveShadow = true;
+    scene.add(ground);
 
     const worldGroup = new THREE.Group();
     scene.add(worldGroup);
     sceneGroupRef.current = worldGroup;
 
-    const camera = new THREE.PerspectiveCamera(48, container.clientWidth / container.clientHeight, 0.1, 120);
+    const camera = new THREE.PerspectiveCamera(46, container.clientWidth / container.clientHeight, 0.1, 120);
     camera.position.set(11, 10, 13);
     cameraRef.current = camera;
 
@@ -490,7 +582,7 @@ export const Viewport3D: React.FC = () => {
         pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
         raycaster.setFromCamera(pointer, camera);
         const intersectPt = new THREE.Vector3();
-        if (intersectPt && raycaster.ray.intersectPlane(floorPlane, intersectPt)) {
+        if (raycaster.ray.intersectPlane(floorPlane, intersectPt)) {
           const nx = Math.round(((intersectPt.x + dragOffset.x) / MM_TO_M) * 20) / 20;
           const ny = Math.round(((intersectPt.z + dragOffset.z) / MM_TO_M) * 20) / 20;
           moveSceneItem(draggingItemId, nx, ny, false);
@@ -535,6 +627,11 @@ export const Viewport3D: React.FC = () => {
     const animate = () => {
       rafId = requestAnimationFrame(animate);
       const dt = Math.min(clock.getDelta(), 0.05);
+
+      // Gentle ceiling fan rotation
+      for (const spinner of fanSpinnersRef.current) {
+        spinner.rotation.y += dt * 1.4;
+      }
 
       if (viewModeRef.current === 'walk') {
         const speed = 3.2 * dt;
@@ -600,8 +697,10 @@ export const Viewport3D: React.FC = () => {
       const child = group.children.pop()!;
       group.remove(child);
     }
+    fanSpinnersRef.current = [];
 
     const nodeMap = new Map(project.nodes.map((n) => [n.id, n]));
+    const skirtingMat = new THREE.MeshStandardMaterial({ color: '#F5F4F0', roughness: 0.45 });
 
     for (const room of rooms) {
       if (room.polygon.length < 3) continue;
@@ -636,6 +735,12 @@ export const Viewport3D: React.FC = () => {
         const ceilMesh = new THREE.Mesh(ceilGeo, ceilMat);
         ceilMesh.position.y = 2.45;
         group.add(ceilMesh);
+
+        if (room.ceilingType === 'well_cove' && room.coveLightOn) {
+          const coveLight = new THREE.PointLight('#FFF3D6', 1.2, 8);
+          coveLight.position.set(room.centroid.x, 2.3, room.centroid.y);
+          group.add(coveLight);
+        }
       }
     }
 
@@ -677,6 +782,11 @@ export const Viewport3D: React.FC = () => {
           seg.receiveShadow = true;
           seg.userData = { targetKind: 'wall', targetId: wall.id };
           wallContainer.add(seg);
+
+          // Baseboard skirting
+          const skirt = new THREE.Mesh(new THREE.BoxGeometry(segLen, 0.045, thick + 0.016), skirtingMat);
+          skirt.position.set(cursor + segLen / 2, 0.0225, 0);
+          wallContainer.add(skirt);
         }
 
         const opTop = Math.min(height, (op.sillHeight + op.height) * MM_TO_M);
@@ -718,6 +828,10 @@ export const Viewport3D: React.FC = () => {
         tail.receiveShadow = true;
         tail.userData = { targetKind: 'wall', targetId: wall.id };
         wallContainer.add(tail);
+
+        const skirt = new THREE.Mesh(new THREE.BoxGeometry(tailLen, 0.045, thick + 0.016), skirtingMat);
+        skirt.position.set(cursor + tailLen / 2, 0.0225, 0);
+        wallContainer.add(skirt);
       }
 
       group.add(wallContainer);
@@ -725,7 +839,7 @@ export const Viewport3D: React.FC = () => {
 
     for (const item of project.items) {
       const isSel = selection?.kind === 'item' && selection.id === item.id;
-      group.add(buildPropMesh(item, isSel));
+      group.add(buildPropMesh(item, isSel, fanSpinnersRef.current));
     }
   }, [project, rooms, selection, showCeiling, viewMode]);
 
@@ -770,13 +884,13 @@ export const Viewport3D: React.FC = () => {
 
       <div className="absolute top-3 left-3 flex items-center gap-2 bg-white/95 backdrop-blur border border-slate-200 rounded-lg px-3 py-1.5 shadow-sm text-xs text-slate-600">
         <span className="font-semibold text-slate-800">
-          {viewMode === 'walk' ? '1인칭 워크스루' : '3D 스튜디오'}
+          {viewMode === 'walk' ? '1인칭 워크스루' : '3D 실사 스튜디오'}
         </span>
         <span className="text-slate-300">|</span>
         <span>
           {viewMode === 'walk'
             ? 'WASD / 방향키 이동 · 화면 드래그 시선 회전'
-            : '클릭 후 우측에서 자재 교체 · 가구 드래그 이동 가능'}
+            : '영역 클릭 시 좌측 자재 탭 자동 전환 · 가구 드래그 이동'}
         </span>
       </div>
 
