@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { MaterialCatalogItem } from '../types/design';
+import { MaterialItem } from '../types/planner';
 
 const mapCache = new Map<string, THREE.CanvasTexture>();
 const bumpCache = new Map<string, THREE.CanvasTexture>();
@@ -9,7 +9,7 @@ function hexRgb(hex: string) {
   return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
 }
 
-export function buildColorMap(item: MaterialCatalogItem, rx = 2, ry = 2): THREE.CanvasTexture {
+export function getTextureMap(item: MaterialItem, rx = 2, ry = 2): THREE.CanvasTexture {
   const key = `${item.id}_${rx.toFixed(1)}_${ry.toFixed(1)}`;
   const hit = mapCache.get(key);
   if (hit) return hit;
@@ -23,14 +23,14 @@ export function buildColorMap(item: MaterialCatalogItem, rx = 2, ry = 2): THREE.
   ctx.fillRect(0, 0, s, s);
   const rgb = hexRgb(item.color);
 
-  if (item.pattern === 'porcelain_600') {
+  if (item.texture === 'porcelain_600') {
     const step = s / 2;
-    for (let i = 0; i < 4200; i++) {
+    for (let i = 0; i < 4000; i++) {
       const d = (Math.random() - 0.5) * 14;
       ctx.fillStyle = `rgba(${Math.min(255, Math.max(0, rgb.r + d))},${Math.min(
         255,
         Math.max(0, rgb.g + d)
-      )},${Math.min(255, Math.max(0, rgb.b + d))},0.32)`;
+      )},${Math.min(255, Math.max(0, rgb.b + d))},0.3)`;
       ctx.fillRect(Math.random() * s, Math.random() * s, 7, 5);
     }
     ctx.strokeStyle = item.subColor || '#D8D2C6';
@@ -45,7 +45,7 @@ export function buildColorMap(item: MaterialCatalogItem, rx = 2, ry = 2): THREE.
       ctx.lineTo(s, k);
       ctx.stroke();
     }
-  } else if (item.pattern === 'wide_oak') {
+  } else if (item.texture === 'wide_oak') {
     const ph = s / 4;
     for (let r = 0; r < 4; r++) {
       const y0 = r * ph;
@@ -74,7 +74,7 @@ export function buildColorMap(item: MaterialCatalogItem, rx = 2, ry = 2): THREE.
       ctx.lineTo(s, y0);
       ctx.stroke();
     }
-  } else if (item.pattern === 'louver_wood') {
+  } else if (item.texture === 'louver_wood') {
     const sw = s / 16;
     for (let x = 0; x < s; x += sw) {
       ctx.fillStyle = item.color;
@@ -82,16 +82,16 @@ export function buildColorMap(item: MaterialCatalogItem, rx = 2, ry = 2): THREE.
       ctx.fillStyle = item.subColor || '#6B4829';
       ctx.fillRect(x + sw - 4, 0, 4, s);
     }
-  } else if (item.pattern === 'stucco') {
+  } else if (item.texture === 'stucco') {
     for (let i = 0; i < 6000; i++) {
       const d = (Math.random() - 0.5) * 12;
       ctx.fillStyle = `rgba(${Math.min(255, Math.max(0, rgb.r + d))},${Math.min(
         255,
         Math.max(0, rgb.g + d)
-      )},${Math.min(255, Math.max(0, rgb.b + d))},0.3)`;
+      )},${Math.min(255, Math.max(0, rgb.b + d))},0.28)`;
       ctx.fillRect(Math.random() * s, Math.random() * s, 3, 3);
     }
-  } else if (item.pattern === 'fabric') {
+  } else if (item.texture === 'fabric') {
     ctx.strokeStyle = 'rgba(0,0,0,0.045)';
     ctx.lineWidth = 1;
     for (let i = 0; i < s; i += 6) {
@@ -115,8 +115,8 @@ export function buildColorMap(item: MaterialCatalogItem, rx = 2, ry = 2): THREE.
   return tex;
 }
 
-export function buildBumpMap(item: MaterialCatalogItem, rx = 2, ry = 2): THREE.CanvasTexture | undefined {
-  if (item.pattern === 'solid' || item.pattern === 'matte_pet') return undefined;
+export function getBumpMap(item: MaterialItem, rx = 2, ry = 2): THREE.CanvasTexture | undefined {
+  if (item.texture === 'solid' || item.texture === 'matte_pet') return undefined;
   const key = `b_${item.id}_${rx.toFixed(1)}_${ry.toFixed(1)}`;
   const hit = bumpCache.get(key);
   if (hit) return hit;
@@ -129,7 +129,7 @@ export function buildBumpMap(item: MaterialCatalogItem, rx = 2, ry = 2): THREE.C
   ctx.fillStyle = '#808080';
   ctx.fillRect(0, 0, s, s);
 
-  if (item.pattern === 'porcelain_600') {
+  if (item.texture === 'porcelain_600') {
     ctx.strokeStyle = '#242424';
     ctx.lineWidth = 3;
     for (let k = 0; k <= s; k += s / 2) {
@@ -142,7 +142,7 @@ export function buildBumpMap(item: MaterialCatalogItem, rx = 2, ry = 2): THREE.C
       ctx.lineTo(s, k);
       ctx.stroke();
     }
-  } else if (item.pattern === 'louver_wood') {
+  } else if (item.texture === 'louver_wood') {
     const sw = s / 16;
     for (let x = 0; x < s; x += sw) {
       ctx.fillStyle = '#d4d4d4';
@@ -151,7 +151,7 @@ export function buildBumpMap(item: MaterialCatalogItem, rx = 2, ry = 2): THREE.C
       ctx.fillRect(x + sw - 3, 0, 3, s);
     }
   } else {
-    for (let i = 0; i < 2800; i++) {
+    for (let i = 0; i < 2400; i++) {
       const v = 108 + Math.floor(Math.random() * 44);
       ctx.fillStyle = `rgb(${v},${v},${v})`;
       ctx.fillRect(Math.random() * s, Math.random() * s, 3, 2);
@@ -166,7 +166,7 @@ export function buildBumpMap(item: MaterialCatalogItem, rx = 2, ry = 2): THREE.C
   return tex;
 }
 
-export function createScenicTvTexture(): THREE.CanvasTexture {
+export function createTvTexture(): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = 512;
   c.height = 288;

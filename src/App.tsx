@@ -1,428 +1,205 @@
 import React, { useEffect, useState } from 'react';
-import { useDesignStore } from './store/useDesignStore';
-import { createEmptyBlueprint, createModelHouse34 } from './data/presets';
-import { CadViewport2D } from './components/CadViewport2D';
-import { Photoreal3DViewport } from './components/Photoreal3DViewport';
-import { MaterialInspector } from './components/MaterialInspector';
-import { UnderlayPickerModal } from './components/UnderlayPickerModal';
-import { QuoteModal } from './components/QuoteModal';
-import { SaveLoadModal } from './components/SaveLoadModal';
 import {
-  AppWindow,
-  Box,
   Calculator,
+  Camera,
   Columns2,
-  Crown,
-  DoorOpen,
   FolderOpen,
+  Footprints,
   Home,
-  ImagePlus,
-  LayoutGrid,
-  Lightbulb,
-  MousePointer2,
-  PanelLeftClose,
-  PanelLeftOpen,
-  PenTool,
-  Plug,
   Redo2,
-  RefreshCw,
-  Ruler,
-  Save,
-  Sofa,
-  Sparkles,
   Square,
-  Trash2,
   Undo2,
+  Box,
 } from 'lucide-react';
-import { CadTool } from './types/design';
+import { usePlannerStore, ViewMode } from './store/usePlannerStore';
+import { LeftCatalogSidebar } from './components/LeftCatalogSidebar';
+import { Viewport2D } from './components/Viewport2D';
+import { Viewport3D } from './components/Viewport3D';
+import { RightPropertyPanel } from './components/RightPropertyPanel';
+import { EstimateModal, ProjectsModal, UnderlayModal } from './components/Modals';
 
 export function App() {
-  const {
-    inStudio,
-    draftPlan,
-    hasPending3DUpdate,
-    past,
-    future,
-    workspaceView,
-    tool,
-    selection,
-    showDimensions,
-    toast,
-    openBlueprint,
-    goHome,
-    setWorkspaceView,
-    setTool,
-    setSelection,
-    setShowDimensions,
-    commit3DUpdate,
-    duplicateSelected,
-    deleteSelected,
-    undo,
-    redo,
-  } = useDesignStore();
+  const projectTitle = usePlannerStore((s) => s.project.title);
+  const viewMode = usePlannerStore((s) => s.viewMode);
+  const pastCount = usePlannerStore((s) => s.past.length);
+  const futureCount = usePlannerStore((s) => s.future.length);
 
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [underlayOpen, setUnderlayOpen] = useState(false);
-  const [quoteOpen, setQuoteOpen] = useState(false);
-  const [saveLoadMode, setSaveLoadMode] = useState<'save' | 'load' | null>(null);
+  const setViewMode = usePlannerStore((s) => s.setViewMode);
+  const loadPreset = usePlannerStore((s) => s.loadPreset);
+  const undo = usePlannerStore((s) => s.undo);
+  const redo = usePlannerStore((s) => s.redo);
+  const deleteSelected = usePlannerStore((s) => s.deleteSelected);
+  const rotateSelected = usePlannerStore((s) => s.rotateSelected);
+  const triggerSnapshot = usePlannerStore((s) => s.triggerSnapshot);
 
+  const [showEstimate, setShowEstimate] = useState(false);
+  const [showUnderlay, setShowUnderlay] = useState(false);
+  const [showProjects, setShowProjects] = useState(false);
+
+  // Global keyboard shortcuts (Undo/Redo/Delete/Rotate)
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!inStudio) return;
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) {
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
         e.preventDefault();
-        if (e.shiftKey) redo();
-        else undo();
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        undo();
+      } else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) {
         e.preventDefault();
         redo();
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
-        e.preventDefault();
-        duplicateSelected();
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
-        e.preventDefault();
         deleteSelected();
-      } else if (e.key === 'Escape') {
-        setTool('select');
-        setSelection(null);
+      } else if (e.key.toLowerCase() === 'r' && !e.ctrlKey && !e.metaKey) {
+        rotateSelected(45);
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [inStudio, undo, redo, duplicateSelected, deleteSelected, setTool, setSelection]);
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [undo, redo, deleteSelected, rotateSelected]);
 
-  const tools: { id: CadTool; label: string; icon: React.ReactNode }[] = [
-    { id: 'select', label: '선택', icon: <MousePointer2 className="w-3.5 h-3.5" /> },
-    { id: 'add_space', label: '방 추가', icon: <LayoutGrid className="w-3.5 h-3.5" /> },
-    { id: 'draw_wall', label: '벽 그리기', icon: <PenTool className="w-3.5 h-3.5" /> },
-    { id: 'add_door', label: '문', icon: <DoorOpen className="w-3.5 h-3.5" /> },
-    { id: 'add_window', label: '창문', icon: <AppWindow className="w-3.5 h-3.5" /> },
-    { id: 'add_outlet', label: '콘센트', icon: <Plug className="w-3.5 h-3.5" /> },
-    { id: 'add_light', label: '조명', icon: <Lightbulb className="w-3.5 h-3.5" /> },
-    { id: 'add_prop', label: '가전/가구', icon: <Sofa className="w-3.5 h-3.5" /> },
+  const viewTabs: { mode: ViewMode; label: string; icon: React.ReactNode }[] = [
+    { mode: '2d', label: '2D 도면', icon: <Square className="w-3.5 h-3.5" /> },
+    { mode: 'split', label: '2D + 3D', icon: <Columns2 className="w-3.5 h-3.5" /> },
+    { mode: '3d', label: '3D 뷰', icon: <Box className="w-3.5 h-3.5" /> },
+    { mode: 'walk', label: '1인칭 걷기', icon: <Footprints className="w-3.5 h-3.5" /> },
   ];
 
   return (
-    <div className="w-screen h-screen flex bg-white text-[#37352F] overflow-hidden">
-      {/* Left Notion Workspace Sidebar */}
-      {sidebarOpen && (
-        <aside className="w-56 shrink-0 h-full bg-[#F7F7F5] border-r border-[#E9E9E7] flex flex-col justify-between select-none">
-          <div className="p-3 space-y-5 overflow-y-auto">
-            <div className="flex items-center justify-between px-1">
-              <button onClick={goHome} className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-md bg-[#0F7B6C] text-white flex items-center justify-center text-xs font-black">
-                  Y
-                </div>
-                <span className="text-xs font-bold text-[#37352F]">Yulha Interior</span>
-              </button>
-              <button
-                onClick={() => setSidebarOpen(false)}
-                className="p-1 rounded hover:bg-[#EAEAE6] text-[#787774]"
-              >
-                <PanelLeftClose className="w-3.5 h-3.5" />
-              </button>
+    <div className="h-screen w-screen flex flex-col bg-slate-100 text-slate-900 overflow-hidden">
+      {/* Top Studio Bar */}
+      <header className="h-13 shrink-0 bg-white border-b border-slate-200 px-3 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-sm">
+              Y
             </div>
-
-            <nav className="space-y-0.5">
-              <div className="px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-[#9B9A97]">
-                워크스페이스
-              </div>
-              <button
-                onClick={goHome}
-                className={`w-full px-2 py-1.5 rounded-md text-xs flex items-center gap-2 ${
-                  !inStudio ? 'bg-[#EAEAE6] font-semibold' : 'text-[#5F5E5B] hover:bg-[#EFEFED]'
-                }`}
-              >
-                <Home className="w-3.5 h-3.5" />
-                <span>홈</span>
-              </button>
-
-              {inStudio && (
-                <>
-                  <button
-                    onClick={() => setWorkspaceView('split')}
-                    className={`w-full px-2 py-1.5 rounded-md text-xs flex items-center gap-2 ${
-                      workspaceView === 'split' ? 'bg-[#EAEAE6] font-semibold' : 'text-[#5F5E5B] hover:bg-[#EFEFED]'
-                    }`}
-                  >
-                    <Columns2 className="w-3.5 h-3.5 text-[#0F7B6C]" />
-                    <span>2D + 3D 분할</span>
-                  </button>
-                  <button
-                    onClick={() => setWorkspaceView('2d')}
-                    className={`w-full px-2 py-1.5 rounded-md text-xs flex items-center gap-2 ${
-                      workspaceView === '2d' ? 'bg-[#EAEAE6] font-semibold' : 'text-[#5F5E5B] hover:bg-[#EFEFED]'
-                    }`}
-                  >
-                    <Square className="w-3.5 h-3.5" />
-                    <span>2D 도면 편집</span>
-                  </button>
-                  <button
-                    onClick={() => setWorkspaceView('3d')}
-                    className={`w-full px-2 py-1.5 rounded-md text-xs flex items-center gap-2 ${
-                      workspaceView === '3d' ? 'bg-[#EAEAE6] font-semibold' : 'text-[#5F5E5B] hover:bg-[#EFEFED]'
-                    }`}
-                  >
-                    <Box className="w-3.5 h-3.5 text-[#2383E2]" />
-                    <span>3D 인테리어 뷰</span>
-                  </button>
-                </>
-              )}
-            </nav>
-
-            {inStudio && (
-              <div className="space-y-0.5">
-                <div className="px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-[#9B9A97]">
-                  도구 · 견적
-                </div>
-                <button
-                  onClick={() => setUnderlayOpen(true)}
-                  className="w-full px-2 py-1.5 rounded-md text-xs text-[#5F5E5B] hover:bg-[#EFEFED] flex items-center gap-2"
-                >
-                  <ImagePlus className="w-3.5 h-3.5 text-[#0F7B6C]" />
-                  <span>도면 밑그림 깔기</span>
-                </button>
-                <button
-                  onClick={() => setQuoteOpen(true)}
-                  className="w-full px-2 py-1.5 rounded-md text-xs text-[#5F5E5B] hover:bg-[#EFEFED] flex items-center gap-2"
-                >
-                  <Calculator className="w-3.5 h-3.5 text-[#0F7B6C]" />
-                  <span>실시간 예상 견적서</span>
-                </button>
-              </div>
-            )}
+            <div className="leading-tight hidden sm:block">
+              <p className="text-xs font-extrabold text-slate-900">YULHA STUDIO</p>
+              <p className="text-[10px] text-slate-400 truncate max-w-[160px]">{projectTitle}</p>
+            </div>
           </div>
 
-          <div className="p-3 border-t border-[#E9E9E7] space-y-1.5">
+          <div className="h-5 w-px bg-slate-200" />
+
+          {/* Korean Apartment Presets */}
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-[11px] font-semibold">
             <button
-              onClick={() => setSaveLoadMode('save')}
-              disabled={!inStudio}
-              className="w-full px-2.5 py-1.5 rounded-md bg-white hover:bg-[#EFEFED] border border-[#E9E9E7] text-xs font-medium flex items-center justify-between disabled:opacity-40"
+              onClick={() => loadPreset('34py')}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-md hover:bg-white hover:shadow-xs text-slate-700"
+              title="34평 4Bay 모델하우스 불러오기"
             >
-              <span className="flex items-center gap-1.5">
-                <Save className="w-3.5 h-3.5 text-[#787774]" />
-                <span>프로젝트 저장</span>
-              </span>
-              <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-amber-100 text-amber-800 text-[9px] font-bold">
-                <Crown className="w-2.5 h-2.5" /> PRO
-              </span>
+              <Home className="w-3 h-3 text-blue-600" />
+              34평 4Bay
             </button>
             <button
-              onClick={() => setSaveLoadMode('load')}
-              className="w-full px-2.5 py-1.5 rounded-md bg-white hover:bg-[#EFEFED] border border-[#E9E9E7] text-xs font-medium flex items-center justify-between"
+              onClick={() => loadPreset('25py')}
+              className="px-2.5 py-1 rounded-md hover:bg-white hover:shadow-xs text-slate-700"
+              title="25평 3Bay 표준형 불러오기"
             >
-              <span className="flex items-center gap-1.5">
-                <FolderOpen className="w-3.5 h-3.5 text-[#787774]" />
-                <span>저장 불러오기</span>
-              </span>
-              <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-amber-100 text-amber-800 text-[9px] font-bold">
-                <Crown className="w-2.5 h-2.5" /> PRO
-              </span>
+              25평 3Bay
+            </button>
+            <button
+              onClick={() => loadPreset('blank')}
+              className="px-2.5 py-1 rounded-md hover:bg-white hover:shadow-xs text-slate-600"
+            >
+              빈 도면
             </button>
           </div>
-        </aside>
-      )}
+        </div>
 
-      {/* Main Column */}
-      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
-        {/* Top Notion Header */}
-        <header className="h-11 shrink-0 border-b border-[#E9E9E7] bg-white px-3 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            {!sidebarOpen && (
-              <button onClick={() => setSidebarOpen(true)} className="p-1.5 rounded hover:bg-[#EFEFED] text-[#787774]">
-                <PanelLeftOpen className="w-4 h-4" />
-              </button>
-            )}
-            <button onClick={goHome} className="text-xs font-medium text-[#787774] hover:text-[#37352F]">
-              Yulha Interior
+        {/* Center View Mode Switcher */}
+        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+          {viewTabs.map((t) => (
+            <button
+              key={t.mode}
+              onClick={() => setViewMode(t.mode)}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all ${
+                viewMode === t.mode
+                  ? 'bg-white text-blue-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              {t.icon}
+              <span>{t.label}</span>
             </button>
-            {inStudio && (
-              <>
-                <span className="text-[#D3D1CB]">/</span>
-                <span className="text-xs font-bold text-[#37352F] truncate">{draftPlan.name}</span>
-              </>
-            )}
-          </div>
+          ))}
+        </div>
 
-          {inStudio && (
-            <div className="flex items-center gap-1.5 shrink-0">
-              <button
-                onClick={undo}
-                disabled={past.length === 0}
-                className="p-1.5 rounded hover:bg-[#EFEFED] text-[#787774] disabled:opacity-30"
-                title="실행 취소 (Ctrl+Z)"
-              >
-                <Undo2 className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={redo}
-                disabled={future.length === 0}
-                className="p-1.5 rounded hover:bg-[#EFEFED] text-[#787774] disabled:opacity-30"
-                title="재실행 (Ctrl+Y)"
-              >
-                <Redo2 className="w-3.5 h-3.5" />
-              </button>
+        {/* Right Utility Actions */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            onClick={undo}
+            disabled={pastCount === 0}
+            title="실행 취소 (Ctrl+Z)"
+            className="p-2 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-35"
+          >
+            <Undo2 className="w-4 h-4" />
+          </button>
+          <button
+            onClick={redo}
+            disabled={futureCount === 0}
+            title="다시 실행 (Ctrl+Y)"
+            className="p-2 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-35"
+          >
+            <Redo2 className="w-4 h-4" />
+          </button>
 
-              <div className="h-4 w-px bg-[#E9E9E7] mx-0.5" />
+          <div className="h-5 w-px bg-slate-200 mx-0.5" />
 
-              <button
-                onClick={commit3DUpdate}
-                className={`px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-1.5 transition ${
-                  hasPending3DUpdate
-                    ? 'bg-[#0F7B6C] hover:bg-[#0c6357] text-white shadow-sm animate-pulse'
-                    : 'bg-[#F7F7F5] hover:bg-[#EFEFED] text-[#37352F] border border-[#E9E9E7]'
-                }`}
-                title="2D 도면 수정 사항을 3D 스튜디오에 반영"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span>{hasPending3DUpdate ? '3D Update (변경됨)' : '3D Update'}</span>
-              </button>
-            </div>
-          )}
-        </header>
+          <button
+            onClick={() => setShowEstimate(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            <Calculator className="w-3.5 h-3.5 text-blue-600" />
+            견적서
+          </button>
 
-        {/* Body */}
-        <div className="flex-1 flex min-h-0 overflow-hidden relative">
-          {!inStudio ? (
-            <div className="flex-1 overflow-y-auto bg-white">
-              <div className="h-20 w-full bg-gradient-to-r from-[#F7F3EE] via-[#F2EEE7] to-[#E6EFEA] border-b border-[#E9E9E7]" />
-              <div className="max-w-3xl mx-auto px-6 pb-16 -mt-7 space-y-7">
-                <div className="space-y-2.5">
-                  <div className="w-12 h-12 rounded-xl bg-white border border-[#E9E9E7] shadow-xs flex items-center justify-center text-xl font-black text-[#0F7B6C]">
-                    Y
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <h1 className="text-2xl font-bold tracking-tight">Yulha Interior Studio</h1>
-                    <span className="px-2 py-0.5 rounded bg-[#DDEDEA] text-[#0F7B6C] text-[11px] font-bold">
-                      2026 트렌드 자재 반영
-                    </span>
-                  </div>
-                  <p className="text-sm text-[#787774] leading-relaxed">
-                    2D 도면에서 공간을 수정하고 <b>3D Update</b> 버튼을 눌러 실사감 있는 3D 인테리어 모델로 확인하세요. 마루·타일·벽지·필름·콘센트·조명·냉장고·인덕션까지 영역별로 직접 선택할 수 있습니다.
-                  </p>
-                </div>
+          <button
+            onClick={() => setShowProjects(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            <FolderOpen className="w-3.5 h-3.5 text-emerald-600" />
+            저장/열기
+          </button>
 
-                <div className="p-3.5 rounded-lg bg-[#F7F7F5] border border-[#E9E9E7] flex items-start gap-2.5 text-xs text-[#5F5E5B]">
-                  <Sparkles className="w-4 h-4 text-[#0F7B6C] shrink-0 mt-0.5" />
-                  <span>
-                    모든 2D 도면 편집 및 3D 자재 시뮬레이션은 무료로 제공됩니다. 프로젝트 다중 저장/불러오기는 추후 월 구독(PRO) 기능으로 제공될 예정입니다.
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  <button
-                    onClick={() => openBlueprint(createModelHouse34())}
-                    className="p-5 rounded-xl border border-[#E9E9E7] hover:border-[#0F7B6C] bg-white hover:bg-[#FBFBFA] text-left transition space-y-2 shadow-2xs"
-                  >
-                    <span className="inline-block px-2 py-0.5 rounded bg-[#DDEDEA] text-[#0F7B6C] text-[10px] font-bold">
-                      모델하우스 바로 체험
-                    </span>
-                    <div className="text-sm font-bold">웜 뉴트럴 34평 스튜디오 열기</div>
-                    <p className="text-xs text-[#787774] leading-relaxed">
-                      우물천장 간접등 · 루씨에어 실링팬 · 우드 블라인드 · 반매립 TV · 콘센트 · 비스포크 4도어 냉장고장 · 1/2번 홈바 키큰장 · 인덕션이 세팅된 3D 공간을 바로 체험하세요.
-                    </p>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      openBlueprint(createEmptyBlueprint());
-                      setUnderlayOpen(true);
-                    }}
-                    className="p-5 rounded-xl border border-[#E9E9E7] hover:border-[#2383E2] bg-white hover:bg-[#FBFBFA] text-left transition space-y-2 shadow-2xs"
-                  >
-                    <span className="inline-block px-2 py-0.5 rounded bg-[#EBF5FF] text-[#2383E2] text-[10px] font-bold">
-                      내 도면 직접 설계
-                    </span>
-                    <div className="text-sm font-bold">빈 도면 + 밑그림 깔아 그리기</div>
-                    <p className="text-xs text-[#787774] leading-relaxed">
-                      네이버 부동산 · 호갱노노 · 분양 홈페이지에서 도면을 캡처해 밑그림으로 깔아두고, 깔끔한 CAD 방/벽/창호 도구로 내 집을 직접 그려보세요.
-                    </p>
-                  </button>
-                </div>
-
-                <button
-                  onClick={() => setSaveLoadMode('load')}
-                  className="w-full p-3.5 rounded-lg border border-[#E9E9E7] hover:bg-[#F7F7F5] text-xs font-semibold flex items-center justify-between transition"
-                >
-                  <span className="flex items-center gap-2">
-                    <FolderOpen className="w-4 h-4 text-[#787774]" />
-                    <span>저장된 프로젝트 불러오기</span>
-                  </span>
-                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold">
-                    <Crown className="w-3 h-3" /> PRO
-                  </span>
-                </button>
-              </div>
-            </div>
-          ) : (
-            <>
-              <main className="flex-1 flex min-w-0 min-h-0">
-                {(workspaceView === 'split' || workspaceView === '2d') && (
-                  <div
-                    className={`${
-                      workspaceView === 'split' ? 'w-1/2 border-r border-[#E9E9E7]' : 'w-full'
-                    } h-full min-w-0 relative`}
-                  >
-                    <CadViewport2D />
-                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-0.5 bg-white/95 backdrop-blur-sm border border-[#E9E9E7] shadow-md rounded-xl px-1.5 py-1">
-                      {tools.map((t) => (
-                        <button
-                          key={t.id}
-                          onClick={() => setTool(t.id)}
-                          className={`px-2 py-1.5 rounded-lg flex items-center gap-1 text-[11px] font-semibold whitespace-nowrap transition ${
-                            tool === t.id ? 'bg-[#EBF5FF] text-[#2383E2]' : 'text-[#787774] hover:bg-[#EFEFEE]'
-                          }`}
-                        >
-                          {t.icon}
-                          <span className="hidden xl:inline">{t.label}</span>
-                        </button>
-                      ))}
-                      <div className="w-px h-4 bg-[#E9E9E7] mx-0.5" />
-                      <button
-                        onClick={deleteSelected}
-                        disabled={!selection}
-                        className="px-2 py-1.5 rounded-lg text-[11px] font-semibold text-[#E03E3E] hover:bg-[#FBE4E4] disabled:opacity-30"
-                        title="선택 삭제 (Delete)"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => setShowDimensions(!showDimensions)}
-                        className={`px-2 py-1.5 rounded-lg text-[11px] font-semibold ${
-                          showDimensions ? 'bg-[#F7F7F5] text-[#37352F]' : 'text-[#9B9A97]'
-                        }`}
-                        title="치수 표시"
-                      >
-                        <Ruler className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {(workspaceView === 'split' || workspaceView === '3d') && (
-                  <div className={`${workspaceView === 'split' ? 'w-1/2' : 'w-full'} h-full min-w-0`}>
-                    <Photoreal3DViewport />
-                  </div>
-                )}
-              </main>
-
-              <MaterialInspector />
-            </>
-          )}
-
-          {toast && (
-            <div className="fixed bottom-5 right-5 z-50 px-4 py-2 rounded-lg bg-[#37352F] text-white text-xs font-medium shadow-lg">
-              {toast}
-            </div>
+          {viewMode !== '2d' && (
+            <button
+              onClick={triggerSnapshot}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800"
+              title="현재 3D 화면 PNG 저장"
+            >
+              <Camera className="w-3.5 h-3.5" />
+              스냅샷
+            </button>
           )}
         </div>
+      </header>
+
+      {/* Main Workspace */}
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+        <LeftCatalogSidebar onOpenUnderlayModal={() => setShowUnderlay(true)} />
+
+        <main className="flex-1 flex min-w-0 min-h-0 overflow-hidden">
+          {(viewMode === '2d' || viewMode === 'split') && (
+            <div className={`${viewMode === 'split' ? 'w-1/2 border-r border-slate-300' : 'w-full'} h-full min-w-0`}>
+              <Viewport2D />
+            </div>
+          )}
+          {(viewMode === '3d' || viewMode === 'split' || viewMode === 'walk') && (
+            <div className={`${viewMode === 'split' ? 'w-1/2' : 'w-full'} h-full min-w-0`}>
+              <Viewport3D />
+            </div>
+          )}
+        </main>
+
+        <RightPropertyPanel />
       </div>
 
-      <UnderlayPickerModal open={underlayOpen} onClose={() => setUnderlayOpen(false)} />
-      <QuoteModal open={quoteOpen} onClose={() => setQuoteOpen(false)} />
-      <SaveLoadModal mode={saveLoadMode} onClose={() => setSaveLoadMode(null)} />
+      {showEstimate && <EstimateModal onClose={() => setShowEstimate(false)} />}
+      {showUnderlay && <UnderlayModal onClose={() => setShowUnderlay(false)} />}
+      {showProjects && <ProjectsModal onClose={() => setShowProjects(false)} />}
     </div>
   );
 }
