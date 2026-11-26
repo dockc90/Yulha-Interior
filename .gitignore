@@ -1,8 +1,0 @@
-node_modules/
-dist/
-.env
-.env.local
-.vercel/
-public/floorplans/
-scripts/.tmp-*
-*.log
